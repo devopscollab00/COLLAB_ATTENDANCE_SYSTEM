@@ -1,0 +1,21 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Path Test</title>
+    <link rel="stylesheet" href="./css/style.css">
+    <style>
+        body { padding: 20px; }
+        .test { background: red; color: white; padding: 10px; }
+    </style>
+</head>
+<body>
+    <h1>Path Test</h1>
+    <div class="test">If CSS loads, this should have styling</div>
+    <div class="attendance-card">This should have glassmorphism if CSS loads</div>
+    <script type="module">
+        console.log('JavaScript module working!');
+        import { CONFIG } from './js/config.js';
+        console.log('CONFIG loaded:', CONFIG);
+    </script>
+</body>
+</html>
