@@ -1,0 +1,506 @@
+/* =================================================================
+   RESPONSIVE DESIGN
+   ================================================================= */
+
+/* =================================================================
+   MOBILE FIRST - BASE STYLES (already defined in style.css)
+   ================================================================= */
+
+/* =================================================================
+   SMALL DEVICES (Phones, up to 576px)
+   ================================================================= */
+@media (max-width: 576px) {
+    :root {
+        font-size: 14px;
+    }
+    
+    .main-container {
+        padding: var(--spacing-md);
+    }
+    
+    .attendance-card {
+        padding: var(--spacing-lg);
+        border-radius: var(--radius-lg);
+    }
+    
+    .card-title {
+        font-size: 1.5rem;
+    }
+    
+    .card-subtitle {
+        font-size: 0.875rem;
+    }
+    
+    .camera-container {
+        height: 240px;
+    }
+    
+    .camera-controls {
+        flex-direction: column;
+    }
+    
+    .camera-controls .btn {
+        width: 100%;
+    }
+    
+    .btn {
+        padding: 0.75rem 1.25rem;
+        font-size: 0.875rem;
+    }
+    
+    .btn i {
+        font-size: 1rem;
+    }
+    
+    /* Toast positioning for mobile */
+    .toast-container {
+        top: var(--spacing-md);
+        right: var(--spacing-md);
+        left: var(--spacing-md);
+        max-width: none;
+    }
+    
+    .toast {
+        min-width: auto;
+        width: 100%;
+    }
+    
+    /* Modal adjustments */
+    .modal {
+        padding: var(--spacing-md);
+    }
+    
+    .modal-content {
+        padding: var(--spacing-xl);
+    }
+    
+    .modal-title {
+        font-size: 1.25rem;
+    }
+    
+    /* Header adjustments */
+    .header-content {
+        padding: var(--spacing-sm);
+    }
+    
+    .brand {
+        font-size: 1rem;
+    }
+    
+    .brand i {
+        font-size: 1.25rem;
+    }
+    
+    .live-time {
+        font-size: 0.75rem;
+    }
+    
+    /* Form adjustments */
+    .form-input {
+        padding: 0.75rem 0.875rem;
+        font-size: 0.875rem;
+    }
+    
+    .form-label {
+        font-size: 0.875rem;
+    }
+    
+    /* Status badge */
+    .status-badge {
+        padding: var(--spacing-sm) var(--spacing-md);
+        font-size: 0.8125rem;
+    }
+    
+    /* Success/Error icons */
+    .success-icon,
+    .error-icon,
+    .confirm-icon {
+        width: 60px;
+        height: 60px;
+    }
+    
+    .success-icon i,
+    .error-icon i,
+    .confirm-icon i {
+        font-size: 2rem;
+    }
+    
+    /* Blob sizes for mobile */
+    .blob-1 {
+        width: 300px;
+        height: 300px;
+    }
+    
+    .blob-2 {
+        width: 250px;
+        height: 250px;
+    }
+    
+    .blob-3 {
+        width: 200px;
+        height: 200px;
+    }
+}
+
+/* =================================================================
+   LANDSCAPE MODE (Mobile Landscape)
+   ================================================================= */
+@media (max-width: 896px) and (orientation: landscape) {
+    .main-container {
+        padding: var(--spacing-sm) var(--spacing-lg);
+    }
+    
+    .app-header {
+        margin-bottom: var(--spacing-md);
+    }
+    
+    .attendance-card {
+        max-width: 600px;
+        padding: var(--spacing-lg);
+    }
+    
+    .card-header {
+        margin-bottom: var(--spacing-md);
+    }
+    
+    .card-title {
+        font-size: 1.5rem;
+    }
+    
+    .camera-container {
+        height: 200px;
+    }
+    
+    .attendance-form {
+        gap: var(--spacing-md);
+    }
+    
+    /* Two column layout for form fields in landscape */
+    .form-row {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: var(--spacing-md);
+    }
+    
+    .modal-content {
+        max-width: 500px;
+    }
+}
+
+/* =================================================================
+   MEDIUM DEVICES (Tablets, 577px to 768px)
+   ================================================================= */
+@media (min-width: 577px) and (max-width: 768px) {
+    .attendance-card {
+        max-width: 540px;
+    }
+    
+    .camera-container {
+        height: 300px;
+    }
+    
+    .camera-controls {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: var(--spacing-md);
+    }
+    
+    .toast-container {
+        top: var(--spacing-lg);
+        right: var(--spacing-lg);
+        max-width: 380px;
+    }
+}
+
+/* =================================================================
+   LARGE DEVICES (Small Laptops, 769px to 1024px)
+   ================================================================= */
+@media (min-width: 769px) and (max-width: 1024px) {
+    .main-container {
+        padding: var(--spacing-xl);
+    }
+    
+    .attendance-card {
+        max-width: 560px;
+    }
+    
+    .camera-container {
+        height: 320px;
+    }
+    
+    .btn:hover:not(:disabled) {
+        transform: translateY(-2px);
+    }
+}
+
+/* =================================================================
+   EXTRA LARGE DEVICES (Laptops/Desktops, 1025px and up)
+   ================================================================= */
+@media (min-width: 1025px) {
+    .main-container {
+        padding: var(--spacing-2xl);
+    }
+    
+    .attendance-card {
+        max-width: 500px;
+    }
+    
+    .camera-container {
+        height: 280px;
+    }
+    
+    /* Enhanced hover effects for desktop */
+    .btn:hover:not(:disabled) {
+        transform: translateY(-2px);
+    }
+    
+    .form-input:hover:not(:disabled) {
+        border-color: var(--primary-light);
+    }
+    
+    /* Better spacing for desktop */
+    .attendance-form {
+        gap: var(--spacing-xl);
+    }
+}
+
+/* =================================================================
+   EXTRA EXTRA LARGE DEVICES (Large Desktops, 1440px and up)
+   ================================================================= */
+@media (min-width: 1440px) {
+    :root {
+        font-size: 18px;
+    }
+    
+    .main-container {
+        padding: var(--spacing-2xl);
+    }
+    
+    .attendance-card {
+        max-width: 550px;
+        padding: var(--spacing-2xl);
+    }
+    
+    .camera-container {
+        height: 320px;
+    }
+    
+    .blob-1 {
+        width: 600px;
+        height: 600px;
+    }
+    
+    .blob-2 {
+        width: 500px;
+        height: 500px;
+    }
+    
+    .blob-3 {
+        width: 450px;
+        height: 450px;
+    }
+}
+
+/* =================================================================
+   TABLET PORTRAIT MODE
+   ================================================================= */
+@media (min-width: 768px) and (max-width: 1024px) and (orientation: portrait) {
+    .main-container {
+        padding: var(--spacing-xl);
+    }
+    
+    .attendance-card {
+        max-width: 600px;
+    }
+    
+    .camera-container {
+        height: 350px;
+    }
+}
+
+/* =================================================================
+   TOUCH DEVICE OPTIMIZATIONS
+   ================================================================= */
+@media (hover: none) and (pointer: coarse) {
+    /* Larger touch targets */
+    .btn {
+        min-height: 48px;
+        padding: 1rem 1.5rem;
+    }
+    
+    .form-input {
+        min-height: 48px;
+        padding: 1rem;
+    }
+    
+    /* Remove hover effects on touch devices */
+    .btn:hover:not(:disabled),
+    .form-input:hover:not(:disabled) {
+        transform: none;
+        border-color: var(--border);
+    }
+    
+    /* Better tap feedback */
+    .btn:active:not(:disabled) {
+        transform: scale(0.98);
+        opacity: 0.9;
+    }
+    
+    /* Prevent text selection on buttons */
+    .btn {
+        -webkit-tap-highlight-color: transparent;
+        -webkit-touch-callout: none;
+        -webkit-user-select: none;
+        user-select: none;
+    }
+}
+
+/* =================================================================
+   HIGH DPI SCREENS (Retina)
+   ================================================================= */
+@media (-webkit-min-device-pixel-ratio: 2), (min-resolution: 192dpi) {
+    /* Sharper text rendering */
+    body {
+        -webkit-font-smoothing: antialiased;
+        -moz-osx-font-smoothing: grayscale;
+        text-rendering: optimizeLegibility;
+    }
+    
+    /* Sharper borders */
+    .form-input,
+    .btn-outline {
+        border-width: 1px;
+    }
+}
+
+/* =================================================================
+   PRINT STYLES
+   ================================================================= */
+@media print {
+    .background-gradient,
+    .blob,
+    .live-time,
+    .camera-controls,
+    .action-buttons,
+    .toast-container,
+    .modal {
+        display: none !important;
+    }
+    
+    body {
+        background: white;
+    }
+    
+    .attendance-card {
+        box-shadow: none;
+        border: 1px solid #000;
+    }
+    
+    .camera-container {
+        page-break-inside: avoid;
+    }
+}
+
+/* =================================================================
+   SAFE AREA INSETS (iOS Notch)
+   ================================================================= */
+@supports (padding: env(safe-area-inset-top)) {
+    .main-container {
+        padding-top: calc(var(--spacing-lg) + env(safe-area-inset-top));
+        padding-right: calc(var(--spacing-lg) + env(safe-area-inset-right));
+        padding-bottom: calc(var(--spacing-lg) + env(safe-area-inset-bottom));
+        padding-left: calc(var(--spacing-lg) + env(safe-area-inset-left));
+    }
+    
+    .toast-container {
+        top: calc(var(--spacing-lg) + env(safe-area-inset-top));
+        right: calc(var(--spacing-lg) + env(safe-area-inset-right));
+    }
+}
+
+/* =================================================================
+   DARK MODE SUPPORT (Optional - Future Enhancement)
+   ================================================================= */
+@media (prefers-color-scheme: dark) {
+    /* Dark mode styles can be added here in future */
+    /* Currently keeping light theme only as specified */
+}
+
+/* =================================================================
+   REDUCE MOTION
+   ================================================================= */
+@media (prefers-reduced-motion: reduce) {
+    * {
+        animation-duration: 0.01ms !important;
+        animation-iteration-count: 1 !important;
+        transition-duration: 0.01ms !important;
+    }
+}
+
+/* =================================================================
+   NO HORIZONTAL SCROLL
+   ================================================================= */
+body {
+    overflow-x: hidden;
+}
+
+html {
+    overflow-x: hidden;
+}
+
+* {
+    max-width: 100%;
+}
+
+/* Prevent specific elements from causing overflow */
+.background-gradient,
+.blob {
+    overflow: hidden;
+}
+
+/* =================================================================
+   ACCESSIBILITY - KEYBOARD NAVIGATION
+   ================================================================= */
+.btn:focus-visible,
+.form-input:focus-visible {
+    outline: 3px solid var(--primary);
+    outline-offset: 2px;
+}
+
+/* =================================================================
+   BROWSER-SPECIFIC FIXES
+   ================================================================= */
+
+/* Safari iOS Fix - Prevent zoom on input focus */
+@media screen and (max-width: 576px) {
+    select,
+    textarea,
+    input[type="text"],
+    input[type="password"],
+    input[type="datetime"],
+    input[type="datetime-local"],
+    input[type="date"],
+    input[type="month"],
+    input[type="time"],
+    input[type="week"],
+    input[type="number"],
+    input[type="email"],
+    input[type="url"] {
+        font-size: 16px !important;
+    }
+}
+
+/* Firefox - Remove default button padding */
+@-moz-document url-prefix() {
+    .btn {
+        padding: calc(0.875rem - 1px) calc(1.5rem - 1px);
+    }
+}
+
+/* Edge - Fix for backdrop-filter */
+@supports (-ms-ime-align: auto) {
+    .attendance-card,
+    .header-content {
+        background: rgba(255, 255, 255, 0.95);
+    }
+}
