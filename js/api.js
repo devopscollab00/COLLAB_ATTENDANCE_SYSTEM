@@ -175,7 +175,9 @@ export async function loadEmployees() {
  */
 export async function loadLocations() {
     try {
-        const response = await fetch(CONFIG.API.ENDPOINT, {
+        const url = `${CONFIG.API.ENDPOINT}?action=getLocations`;
+        
+        const response = await fetch(url, {
             method: 'GET',
             mode: 'cors'
         });
@@ -184,22 +186,14 @@ export async function loadLocations() {
             throw new Error('Failed to load locations');
         }
 
-        const html = await response.text();
+        const result = await response.json();
         
-        // Parse locations from HTML
-        const parser = new DOMParser();
-        const doc = parser.parseFromString(html, 'text/html');
-        const datalist = doc.querySelector('#locationList');
-        
-        if (!datalist) {
-            // Return default locations if not found in HTML
-            return CONFIG.LOCATIONS;
+        if (result.success && result.locations) {
+            return result.locations;
         }
-
-        const options = datalist.querySelectorAll('option');
-        const locations = Array.from(options).map(opt => opt.value).filter(v => v);
         
-        return locations.length > 0 ? locations : CONFIG.LOCATIONS;
+        // Fallback to default locations
+        return CONFIG.LOCATIONS;
 
     } catch (error) {
         console.error('Error loading locations:', error);
@@ -213,16 +207,24 @@ export async function loadLocations() {
  */
 export async function checkAttendanceStatus(employeeName) {
     try {
-        const payload = {
-            action: 'checkStatus',
-            employeeName: employeeName
-        };
+        const url = `${CONFIG.API.ENDPOINT}?action=checkStatus&employeeName=${encodeURIComponent(employeeName)}`;
+        
+        const response = await fetch(url, {
+            method: 'GET',
+            mode: 'cors'
+        });
 
-        const response = await apiRequest(payload);
+        if (!response.ok) {
+            throw new Error('Failed to check status');
+        }
+
+        const result = await response.json();
         
         return {
-            hasClockIn: response.hasClockIn || false,
-            hasClockOut: response.hasClockOut || false
+            hasClockIn: result.hasClockIn || false,
+            hasBreakStart: result.hasBreakStart || false,
+            hasBreakEnd: result.hasBreakEnd || false,
+            hasClockOut: result.hasClockOut || false
         };
 
     } catch (error) {
@@ -279,6 +281,56 @@ export async function submitTimeOut(employeeName, location, photoBase64) {
 
     } catch (error) {
         console.error('Error submitting time out:', error);
+        throw error;
+    }
+}
+
+/**
+ * Submit Break Start
+ */
+export async function submitBreakStart(employeeName, location) {
+    try {
+        const payload = {
+            type: 'BREAK_START',
+            fullName: employeeName,
+            location: location
+        };
+
+        const response = await apiRequest(payload);
+        
+        if (response.success === false) {
+            throw new Error(response.message || CONFIG.MESSAGES.ERROR.API_ERROR);
+        }
+
+        return response;
+
+    } catch (error) {
+        console.error('Error submitting break start:', error);
+        throw error;
+    }
+}
+
+/**
+ * Submit Break End
+ */
+export async function submitBreakEnd(employeeName, location) {
+    try {
+        const payload = {
+            type: 'BREAK_END',
+            fullName: employeeName,
+            location: location
+        };
+
+        const response = await apiRequest(payload);
+        
+        if (response.success === false) {
+            throw new Error(response.message || CONFIG.MESSAGES.ERROR.API_ERROR);
+        }
+
+        return response;
+
+    } catch (error) {
+        console.error('Error submitting break end:', error);
         throw error;
     }
 }

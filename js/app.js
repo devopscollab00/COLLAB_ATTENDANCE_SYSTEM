@@ -15,6 +15,8 @@ import * as UI from './ui.js';
 let currentEmployee = null;
 let currentLocation = null;
 let hasClockIn = false;
+let hasBreakStart = false;
+let hasBreakEnd = false;
 let hasClockOut = false;
 let isSubmitting = false;
 
@@ -119,6 +121,16 @@ function setupEventListeners() {
         timeInBtn.addEventListener('click', handleTimeIn);
     }
     
+    const breakStartBtn = document.getElementById('breakStartBtn');
+    if (breakStartBtn) {
+        breakStartBtn.addEventListener('click', handleBreakStart);
+    }
+    
+    const breakEndBtn = document.getElementById('breakEndBtn');
+    if (breakEndBtn) {
+        breakEndBtn.addEventListener('click', handleBreakEnd);
+    }
+    
     const timeOutBtn = document.getElementById('timeOutBtn');
     if (timeOutBtn) {
         timeOutBtn.addEventListener('click', handleTimeOut);
@@ -160,10 +172,12 @@ async function handleEmployeeIdBlur(event) {
             // Check attendance status
             const status = await API.checkAttendanceStatus(currentEmployee);
             hasClockIn = status.hasClockIn;
+            hasBreakStart = status.hasBreakStart;
+            hasBreakEnd = status.hasBreakEnd;
             hasClockOut = status.hasClockOut;
             
             // Show status
-            UI.showStatus(hasClockIn, hasClockOut);
+            UI.showStatus(hasClockIn, hasBreakStart, hasBreakEnd, hasClockOut);
             
             // Reset camera if needed for Time Out
             if (hasClockIn && !hasClockOut) {
@@ -362,7 +376,7 @@ async function submitTimeIn(photoData) {
                 // Reset form after success
                 resetForm();
                 hasClockIn = true;
-                UI.showStatus(hasClockIn, hasClockOut);
+                UI.showStatus(hasClockIn, hasBreakStart, hasBreakEnd, hasClockOut);
                 updateUI();
             }
         );
@@ -375,6 +389,128 @@ async function submitTimeIn(photoData) {
         console.error('Error submitting time in:', error);
         Modal.hideLoading();
         Modal.showError('Time In Failed', error.message || CONFIG.MESSAGES.ERROR.API_ERROR);
+        
+    } finally {
+        isSubmitting = false;
+        UI.enableButtons();
+        updateUI();
+    }
+}
+
+/**
+ * Handle Break Start
+ */
+async function handleBreakStart() {
+    if (isSubmitting) return;
+    
+    Validation.clearValidationErrors();
+    
+    // Validate form (no photo needed for break)
+    if (!currentEmployee || !currentLocation) {
+        UI.showToast('error', 'Validation Error', 'Please ensure employee and location are set');
+        return;
+    }
+    
+    // Confirm action
+    Modal.showConfirm(
+        'Start Break?',
+        `Record break start for ${currentEmployee}?`,
+        async () => {
+            await submitBreakStart();
+        }
+    );
+}
+
+/**
+ * Submit Break Start
+ */
+async function submitBreakStart() {
+    isSubmitting = true;
+    
+    try {
+        Modal.showLoading('Recording Break Start...');
+        UI.disableButtons();
+        
+        // Submit to API
+        const response = await API.submitBreakStart(currentEmployee, currentLocation);
+        
+        Modal.hideLoading();
+        
+        // Show success
+        Modal.showSuccess(
+            'Break Started',
+            'Break time recorded successfully',
+            () => {
+                hasBreakStart = true;
+                updateUI();
+            }
+        );
+        
+    } catch (error) {
+        console.error('Error submitting break start:', error);
+        Modal.hideLoading();
+        Modal.showError('Break Start Failed', error.message || CONFIG.MESSAGES.ERROR.API_ERROR);
+        
+    } finally {
+        isSubmitting = false;
+        UI.enableButtons();
+        updateUI();
+    }
+}
+
+/**
+ * Handle Break End
+ */
+async function handleBreakEnd() {
+    if (isSubmitting) return;
+    
+    Validation.clearValidationErrors();
+    
+    // Validate form (no photo needed for break)
+    if (!currentEmployee || !currentLocation) {
+        UI.showToast('error', 'Validation Error', 'Please ensure employee and location are set');
+        return;
+    }
+    
+    // Confirm action
+    Modal.showConfirm(
+        'End Break?',
+        `Record break end for ${currentEmployee}?`,
+        async () => {
+            await submitBreakEnd();
+        }
+    );
+}
+
+/**
+ * Submit Break End
+ */
+async function submitBreakEnd() {
+    isSubmitting = true;
+    
+    try {
+        Modal.showLoading('Recording Break End...');
+        UI.disableButtons();
+        
+        // Submit to API
+        const response = await API.submitBreakEnd(currentEmployee, currentLocation);
+        
+        Modal.hideLoading();
+        
+        // Show success
+        Modal.showSuccess(
+            'Break Ended',
+            'Back to work recorded successfully',
+            () => {
+                hasBreakEnd = true;
+                updateUI();
+            }
+        );
+        
+    } catch (error) {
+        console.error('Error submitting break end:', error);
+        Modal.hideLoading();
+        Modal.showError('Break End Failed', error.message || CONFIG.MESSAGES.ERROR.API_ERROR);
         
     } finally {
         isSubmitting = false;
@@ -449,7 +585,7 @@ async function submitTimeOut(photoData) {
                 // Reset form after success
                 resetForm();
                 hasClockOut = true;
-                UI.showStatus(hasClockIn, hasClockOut);
+                UI.showStatus(hasClockIn, hasBreakStart, hasBreakEnd, hasClockOut);
                 updateUI();
             }
         );
@@ -475,7 +611,7 @@ async function submitTimeOut(photoData) {
  */
 function updateUI() {
     const hasCapturedPhoto = Camera.isReadyToSubmit();
-    UI.updateButtonStates(hasClockIn, hasClockOut, hasCapturedPhoto);
+    UI.updateButtonStates(hasClockIn, hasBreakStart, hasBreakEnd, hasClockOut, hasCapturedPhoto);
 }
 
 /**
@@ -504,6 +640,8 @@ function resetForm() {
     
     // Reset state
     hasClockIn = false;
+    hasBreakStart = false;
+    hasBreakEnd = false;
     hasClockOut = false;
 }
 

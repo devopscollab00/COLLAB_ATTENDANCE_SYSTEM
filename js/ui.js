@@ -68,12 +68,12 @@ function updateGreeting() {
 /**
  * Show status badge
  */
-export function showStatus(hasClockIn, hasClockOut) {
+export function showStatus(hasClockIn, hasBreakStart, hasBreakEnd, hasClockOut) {
     const statusBadge = document.getElementById('statusBadge');
     const statusText = document.getElementById('statusText');
     
     if (statusBadge && statusText) {
-        statusText.textContent = getStatusText(hasClockIn, hasClockOut);
+        statusText.textContent = getStatusText(hasClockIn, hasBreakStart, hasBreakEnd, hasClockOut);
         statusBadge.style.display = 'flex';
         
         // Add animation
@@ -84,6 +84,10 @@ export function showStatus(hasClockIn, hasClockOut) {
             statusBadge.style.background = 'linear-gradient(135deg, rgba(213, 0, 0, 0.1), rgba(213, 0, 0, 0.05))';
             statusBadge.style.borderColor = 'rgba(213, 0, 0, 0.2)';
             statusBadge.style.color = 'var(--danger-dark)';
+        } else if (hasBreakStart && !hasBreakEnd) {
+            statusBadge.style.background = 'linear-gradient(135deg, rgba(255, 111, 0, 0.1), rgba(255, 111, 0, 0.05))';
+            statusBadge.style.borderColor = 'rgba(255, 111, 0, 0.2)';
+            statusBadge.style.color = 'var(--warning-dark)';
         } else if (hasClockIn) {
             statusBadge.style.background = 'linear-gradient(135deg, rgba(0, 200, 83, 0.1), rgba(0, 200, 83, 0.05))';
             statusBadge.style.borderColor = 'rgba(0, 200, 83, 0.2)';
@@ -105,27 +109,53 @@ export function hideStatus() {
 /**
  * Update button states based on attendance status
  */
-export function updateButtonStates(hasClockIn, hasClockOut, hasPhoto) {
+export function updateButtonStates(hasClockIn, hasBreakStart, hasBreakEnd, hasClockOut, hasPhoto) {
     const timeInBtn = document.getElementById('timeInBtn');
+    const breakStartBtn = document.getElementById('breakStartBtn');
+    const breakEndBtn = document.getElementById('breakEndBtn');
     const timeOutBtn = document.getElementById('timeOutBtn');
     
-    if (timeInBtn && timeOutBtn) {
+    if (timeInBtn && breakStartBtn && breakEndBtn && timeOutBtn) {
         if (hasClockOut) {
-            // Already clocked out - disable both
+            // Already clocked out - disable all
             timeInBtn.disabled = true;
             timeInBtn.style.display = 'none';
+            breakStartBtn.disabled = true;
+            breakStartBtn.style.display = 'none';
+            breakEndBtn.disabled = true;
+            breakEndBtn.style.display = 'none';
             timeOutBtn.disabled = true;
             timeOutBtn.style.display = 'flex';
         } else if (hasClockIn) {
-            // Clocked in - show time out button
+            // Clocked in - show break and time out buttons
             timeInBtn.disabled = true;
             timeInBtn.style.display = 'none';
+            
+            if (!hasBreakStart) {
+                // Show break start button (no photo needed)
+                breakStartBtn.disabled = false;
+                breakStartBtn.style.display = 'flex';
+                breakEndBtn.style.display = 'none';
+            } else if (hasBreakStart && !hasBreakEnd) {
+                // Show break end button (no photo needed)
+                breakStartBtn.style.display = 'none';
+                breakEndBtn.disabled = false;
+                breakEndBtn.style.display = 'flex';
+            } else {
+                // Break completed, hide break buttons
+                breakStartBtn.style.display = 'none';
+                breakEndBtn.style.display = 'none';
+            }
+            
+            // Show time out button (needs photo)
             timeOutBtn.disabled = !hasPhoto;
             timeOutBtn.style.display = 'flex';
         } else {
-            // Not clocked in - show time in button
+            // Not clocked in - show only time in button
             timeInBtn.disabled = !hasPhoto;
             timeInBtn.style.display = 'flex';
+            breakStartBtn.style.display = 'none';
+            breakEndBtn.style.display = 'none';
             timeOutBtn.disabled = true;
             timeOutBtn.style.display = 'none';
         }

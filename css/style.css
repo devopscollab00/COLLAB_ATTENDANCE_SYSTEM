@@ -464,6 +464,28 @@ body {
     box-shadow: 0 6px 20px rgba(213, 0, 0, 0.4);
 }
 
+.btn-warning {
+    background: linear-gradient(135deg, var(--warning), var(--warning-dark));
+    color: white;
+    box-shadow: 0 4px 12px rgba(255, 111, 0, 0.3);
+}
+
+.btn-warning:hover:not(:disabled) {
+    transform: translateY(-2px);
+    box-shadow: 0 6px 20px rgba(255, 111, 0, 0.4);
+}
+
+.btn-info {
+    background: linear-gradient(135deg, #0091EA, #0277BD);
+    color: white;
+    box-shadow: 0 4px 12px rgba(0, 145, 234, 0.3);
+}
+
+.btn-info:hover:not(:disabled) {
+    transform: translateY(-2px);
+    box-shadow: 0 6px 20px rgba(0, 145, 234, 0.4);
+}
+
 .btn-outline {
     background: white;
     color: var(--text-primary);

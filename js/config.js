@@ -119,9 +119,11 @@ export function getGreeting() {
 /**
  * Get status text based on attendance state
  */
-export function getStatusText(hasClockIn, hasClockOut) {
+export function getStatusText(hasClockIn, hasBreakStart, hasBreakEnd, hasClockOut) {
     if (hasClockOut) {
         return 'Completed - You have clocked out';
+    } else if (hasClockIn && hasBreakStart && !hasBreakEnd) {
+        return 'On Break - Please end break when ready';
     } else if (hasClockIn) {
         return 'Clocked In - Ready to clock out';
     } else {
