@@ -47,25 +47,17 @@ async function init() {
 }
 
 /**
- * Load initial data (employees, locations)
+ * Load initial data (locations only)
  */
 async function loadInitialData() {
     try {
         Modal.showLoading(CONFIG.MESSAGES.LOADING.LOADING_DATA);
         
-        // Load employees and locations in parallel
-        const [employees, locations] = await Promise.all([
-            API.loadEmployees(),
-            API.loadLocations()
-        ]);
+        // Load locations only
+        const locations = await API.loadLocations();
         
-        // Populate dropdowns
-        const employeeSelect = document.getElementById('employeeName');
+        // Populate location dropdown
         const locationSelect = document.getElementById('location');
-        
-        if (employeeSelect) {
-            UI.populateSelect(employeeSelect, employees, 'Select your name');
-        }
         
         if (locationSelect) {
             UI.populateSelect(locationSelect, locations, 'Select location');
@@ -84,10 +76,19 @@ async function loadInitialData() {
  * Setup all event listeners
  */
 function setupEventListeners() {
-    // Employee selection change
-    const employeeSelect = document.getElementById('employeeName');
-    if (employeeSelect) {
-        employeeSelect.addEventListener('change', handleEmployeeChange);
+    // Employee ID input with debounce
+    const employeeInput = document.getElementById('employeeId');
+    if (employeeInput) {
+        // Validate on blur (when user leaves field)
+        employeeInput.addEventListener('blur', handleEmployeeIdBlur);
+        
+        // Clear errors on input
+        employeeInput.addEventListener('input', () => {
+            Validation.clearValidationErrors();
+            currentEmployee = null;
+            UI.hideStatus();
+            updateUI();
+        });
     }
     
     // Location selection change
@@ -133,7 +134,73 @@ function setupEventListeners() {
 }
 
 /**
+ * Handle employee ID blur (validation)
+ */
+async function handleEmployeeIdBlur(event) {
+    const employeeId = event.target.value.trim();
+    Validation.clearValidationErrors();
+    
+    if (!employeeId) {
+        return;
+    }
+    
+    // Validate employee ID
+    try {
+        Modal.showLoading('Validating Employee ID...');
+        
+        const result = await API.validateEmployeeId(employeeId);
+        
+        if (result.success) {
+            // Store employee name (not ID)
+            currentEmployee = result.employeeName;
+            
+            // Show success feedback
+            UI.showToast('success', 'Valid ID', `Welcome, ${result.employeeName}!`);
+            
+            // Check attendance status
+            const status = await API.checkAttendanceStatus(currentEmployee);
+            hasClockIn = status.hasClockIn;
+            hasClockOut = status.hasClockOut;
+            
+            // Show status
+            UI.showStatus(hasClockIn, hasClockOut);
+            
+            // Reset camera if needed for Time Out
+            if (hasClockIn && !hasClockOut) {
+                Camera.resetCamera();
+                UI.updateCameraControls('idle');
+                UI.showToast('info', 'Time Out Required', 'Please capture a new photo for Time Out');
+            }
+            
+            // If already clocked out, show message
+            if (hasClockOut) {
+                UI.showToast('success', 'Completed', 'You have already completed attendance for today');
+            }
+        }
+        
+        Modal.hideLoading();
+        updateUI();
+        
+    } catch (error) {
+        console.error('Error validating employee ID:', error);
+        Modal.hideLoading();
+        
+        // Show error in field
+        const employeeError = document.getElementById('employeeError');
+        if (employeeError) {
+            employeeError.textContent = error.message || 'Invalid Employee ID';
+            employeeError.classList.add('active');
+        }
+        
+        // Highlight input
+        event.target.classList.add('error');
+        UI.shakeElement(event.target);
+    }
+}
+
+/**
  * Handle employee selection change
+ * @deprecated - Replaced with handleEmployeeIdBlur
  */
 async function handleEmployeeChange(event) {
     currentEmployee = event.target.value;

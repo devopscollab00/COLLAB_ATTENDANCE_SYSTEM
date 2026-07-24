@@ -312,6 +312,11 @@ body {
     opacity: 0.6;
 }
 
+.form-input.error {
+    border-color: var(--danger);
+    animation: shake 0.5s ease-in-out;
+}
+
 .form-error {
     color: var(--danger);
     font-size: 0.8125rem;

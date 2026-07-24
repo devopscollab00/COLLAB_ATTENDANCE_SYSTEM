@@ -18,7 +18,28 @@ class ValidationResult {
 }
 
 /**
+ * Validate employee ID input
+ */
+export function validateEmployeeId(employeeId) {
+    if (!employeeId || employeeId.trim() === '') {
+        return new ValidationResult(false, {
+            employee: 'Please enter your Employee ID'
+        });
+    }
+    
+    // Basic format validation (adjust as needed)
+    if (employeeId.trim().length < 2) {
+        return new ValidationResult(false, {
+            employee: 'Employee ID must be at least 2 characters'
+        });
+    }
+    
+    return new ValidationResult(true);
+}
+
+/**
  * Validate employee selection
+ * @deprecated - Use validateEmployeeId instead
  */
 export function validateEmployee(employeeName) {
     if (!employeeName || employeeName.trim() === '') {
@@ -77,11 +98,10 @@ export function validateForm(employeeName, location) {
     const errors = {};
     let isValid = true;
 
-    // Validate employee
-    const employeeValidation = validateEmployee(employeeName);
-    if (!employeeValidation.isValid) {
+    // Validate employee (check if validated - currentEmployee should be set)
+    if (!employeeName) {
         isValid = false;
-        Object.assign(errors, employeeValidation.errors);
+        errors.employee = 'Please enter and validate your Employee ID';
     }
 
     // Validate location

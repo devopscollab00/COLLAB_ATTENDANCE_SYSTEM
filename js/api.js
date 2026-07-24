@@ -85,7 +85,56 @@ function sleep(ms) {
 }
 
 /**
+ * Validate Employee ID and get employee details
+ * Calls backend getEmployeeByID function
+ */
+export async function validateEmployeeId(employeeId) {
+    try {
+        // Call Google Apps Script function directly
+        const url = `${CONFIG.API.ENDPOINT}?action=getEmployeeByID&employeeId=${encodeURIComponent(employeeId)}`;
+        
+        const controller = new AbortController();
+        const timeoutId = setTimeout(() => controller.abort(), CONFIG.API.TIMEOUT);
+
+        const response = await fetch(url, {
+            method: 'GET',
+            signal: controller.signal,
+            mode: 'cors'
+        });
+
+        clearTimeout(timeoutId);
+
+        if (!response.ok) {
+            throw new Error(`HTTP error! status: ${response.status}`);
+        }
+
+        const result = await response.json();
+        
+        if (result.success === false) {
+            throw new Error(result.message || 'Invalid Employee ID');
+        }
+
+        return {
+            success: true,
+            employeeId: result.employeeId,
+            employeeName: result.employeeName,
+            fullName: result.fullName
+        };
+
+    } catch (error) {
+        console.error('Error validating employee ID:', error);
+        
+        if (error.name === 'AbortError') {
+            throw new Error('Request timeout. Please try again.');
+        }
+        
+        throw error;
+    }
+}
+
+/**
  * Load employees from backend
+ * @deprecated - Not needed anymore, using manual ID entry
  */
 export async function loadEmployees() {
     try {
