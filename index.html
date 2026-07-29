@@ -1,0 +1,1643 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>COLLAB Attendance System</title>
+    <style>
+      * { box-sizing: border-box; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; }
+      body { background-color: #f4f6f9; margin: 0; padding: 20px; display: flex; justify-content: center; align-items: center; min-height: 100vh; position: relative; overflow-x: hidden; }
+      .container { max-width: 450px; width: 100%; background: white; padding: 25px; border-radius: 12px; box-shadow: 0 4px 15px rgba(0,0,0,0.1); text-align: center; transition: all 0.3s ease; }
+      h2 { color: #333; margin-bottom: 20px; font-size: 20px; border-bottom: 2px solid #00E676; padding-bottom: 10px; margin-top: 0; }
+      
+      .form-group { margin-bottom: 15px; text-align: left; }
+      label { font-weight: bold; display: block; margin-bottom: 6px; color: #555; font-size: 14px; }
+      input[type="text"], input[type="time"], select { width: 100%; padding: 12px; border: 2px solid #ddd; border-radius: 6px; font-size: 15px; outline: none; background-color: #fff; transition: border 0.3s; }
+      input[type="text"]:focus, input[type="time"]:focus, select:focus { border-color: #00E676; }
+      
+      .camera-box { position: relative; width: 100%; height: 240px; background: #000; border-radius: 8px; margin-bottom: 12px; overflow: hidden; display: flex; justify-content: center; align-items: center; border: 2px solid #ddd; }
+      img { width: 100%; height: 100%; object-fit: cover; }
+      .camera-status { position: absolute; color: white; background: rgba(0,0,0,0.7); padding: 8px 15px; border-radius: 4px; font-size: 13px; max-width: 80%; }
+      
+      .btn { width: 100%; padding: 14px; font-size: 15px; font-weight: bold; border: none; border-radius: 6px; cursor: pointer; color: white; transition: background 0.2s; margin-bottom: 12px; }
+      .btn:disabled { opacity: 0.5; cursor: not-allowed; }
+      .btn-capture { background-color: #0288D1; margin-bottom: 20px; }
+      .btn-capture:hover:not(:disabled) { background-color: #01579B; }
+      
+      /* New 4-button grid layout */
+      .attendance-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-bottom: 12px; }
+      .btn-clock-in { background-color: #00C853; }
+      .btn-clock-in:hover:not(:disabled) { background-color: #009624; }
+      .btn-break-start { background-color: #FF6F00; }
+      .btn-break-start:hover:not(:disabled) { background-color: #E65100; }
+      .btn-break-end { background-color: #0091EA; }
+      .btn-break-end:hover:not(:disabled) { background-color: #0277BD; }
+      .btn-clock-out { background-color: #D50000; }
+      .btn-clock-out:hover:not(:disabled) { background-color: #9A0000; }
+      
+      .loader { display: none; margin: 15px auto; border: 4px solid #f3f3f3; border-top: 4px solid #0288D1; border-radius: 50%; width: 30px; height: 30px; animation: spin 1s linear infinite; }
+      @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
+      
+      .message { margin-top: 15px; padding: 12px; border-radius: 6px; font-weight: bold; display: none; font-size: 14px; }
+      .error { background-color: #FFEBEE; color: #C62828; display: block; }
+
+      .modal-overlay { display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0, 0, 0, 0.6); justify-content: center; align-items: center; z-index: 1000; backdrop-filter: blur(2px); }
+      .modal-content { background: white; padding: 30px; border-radius: 16px; width: 85%; max-width: 360px; text-align: center; box-shadow: 0 20px 60px rgba(0,0,0,0.3); animation: modalSlideIn 0.3s ease-out; }
+      
+      @keyframes modalSlideIn {
+        from { transform: translateY(-50px); opacity: 0; }
+        to { transform: translateY(0); opacity: 1; }
+      }
+      
+      .success-icon { width: 70px; height: 70px; background: linear-gradient(135deg, #E8F5E9 0%, #C8E6C9 100%); color: #2E7D32; border-radius: 50%; font-size: 36px; line-height: 70px; margin: 0 auto 20px auto; font-weight: bold; box-shadow: 0 4px 15px rgba(46, 125, 50, 0.2); }
+      .modal-content h3 { margin: 0 0 12px 0; color: #1a1a1a; font-size: 22px; font-weight: 600; }
+      .modal-content p { margin: 0 0 25px 0; color: #555; font-size: 15px; line-height: 1.5; }
+      .modal-btn { background: linear-gradient(135deg, #2E7D32 0%, #1B5E20 100%); color: white; border: none; padding: 14px 28px; border-radius: 8px; font-size: 15px; font-weight: 600; cursor: pointer; width: 100%; outline: none; box-shadow: 0 4px 12px rgba(46, 125, 50, 0.3); transition: all 0.3s ease; }
+      .modal-btn:hover { transform: translateY(-2px); box-shadow: 0 6px 20px rgba(46, 125, 50, 0.4); }
+      .modal-btn:active { transform: translateY(0); }
+
+      .admin-login-modal .modal-content { max-width: 380px; text-align: left; padding: 35px; }
+      .admin-login-modal h3 { text-align: center; color: #ff9100; border-bottom: 2px solid #ffe0b2; padding-bottom: 12px; margin-bottom: 25px; font-size: 20px; font-weight: 600; }
+      .admin-login-modal .form-group { margin-bottom: 18px; }
+      .admin-login-modal input[type="text"], .admin-login-modal input[type="password"] { width: 100%; padding: 12px 14px; border: 2px solid #e0e0e0; border-radius: 8px; font-size: 14px; transition: all 0.3s; }
+      .admin-login-modal input[type="text"]:focus, .admin-login-modal input[type="password"]:focus { border-color: #ff9100; box-shadow: 0 0 0 3px rgba(255, 145, 0, 0.1); }
+      .admin-login-modal .btn-login { background: linear-gradient(135deg, #ff9100 0%, #e68200 100%); margin-top: 15px; padding: 13px; border-radius: 8px; box-shadow: 0 4px 12px rgba(255, 145, 0, 0.3); transition: all 0.3s; }
+      .admin-login-modal .btn-login:hover { transform: translateY(-2px); box-shadow: 0 6px 20px rgba(255, 145, 0, 0.4); }
+      .admin-login-modal .btn-cancel { background-color: #64748b; margin-top: 10px; border-radius: 8px; padding: 13px; transition: all 0.3s; }
+      .admin-login-modal .btn-cancel:hover { background-color: #475569; transform: translateY(-2px); }
+      .admin-login-modal .error-text { color: #D50000; font-size: 13px; margin-top: 12px; text-align: center; display: none; padding: 10px; background: #ffebee; border-radius: 6px; }
+
+      .btn-ot-trigger { background-color: transparent; border: 2px dashed #ff9100; color: #e68200; margin-top: 15px; margin-bottom: 0px; }
+      .btn-ot-trigger:hover { background-color: #fff3e0; }
+      
+      .btn-trigger-clockout { background-color: transparent; border: 2px dashed #64748b; color: #475569; margin-top: 10px; margin-bottom: 0px; }
+      .btn-trigger-clockout:hover { background-color: #f1f5f9; }
+      
+      .btn-deploy-trigger { background-color: transparent; border: 2px dashed #0369a1; color: #0284c7; margin-top: 10px; margin-bottom: 0px; }
+      .btn-deploy-trigger:hover { background-color: #f0f9ff; }
+      
+      .ot-panel { position: fixed; top: 0; left: 100%; width: 100%; height: 100%; background: #f8fafc; z-index: 500; padding: 20px; display: flex; justify-content: center; align-items: start; overflow-y: auto; transition: left 0.3s ease-in-out; }
+      .ot-panel.active { left: 0; }
+      .ot-panel h2 { border-bottom: 2px solid #ff9100; }
+      .ot-panel input[type="text"]:focus, .ot-panel input[type="time"]:focus { border-color: #ff9100; }
+      
+      .time-row { display: flex; gap: 15px; margin-bottom: 15px; }
+      .time-row .form-group { flex: 1; margin-bottom: 0; }
+      
+      .computed-box { background: #fff3e0; border: 1px solid #ffe0b2; padding: 12px; border-radius: 6px; font-weight: bold; color: #e65100; font-size: 14px; margin-bottom: 15px; text-align: center; }
+      .btn-ot-submit { background-color: #ff9100; margin-top: 10px; }
+      .btn-ot-submit:hover:not(:disabled) { background-color: #e68200; }
+      .btn-ot-back { background-color: #64748b; }
+      .btn-ot-back:hover { background-color: #475569; }
+
+      .deploy-panel { position: fixed; top: 0; left: 100%; width: 100%; height: 100%; background: #f8fafc; z-index: 500; padding: 20px; display: flex; justify-content: center; align-items: start; overflow-y: auto; transition: left 0.3s ease-in-out; }
+      .deploy-panel.active { left: 0; }
+      .deploy-panel h2 { border-bottom: 2px solid #0369a1; }
+      .deploy-panel input[type="text"]:focus, .deploy-panel input[type="time"]:focus { border-color: #0369a1; }
+      .btn-deploy-submit { background-color: #0284c7; margin-top: 10px; }
+      .btn-deploy-submit:hover:not(:disabled) { background-color: #0369a1; }
+      .btn-deploy-back { background-color: #64748b; }
+      .btn-deploy-back:hover { background-color: #475569; }
+
+      .clock-schedule-container { margin-top: 20px; padding-top: 15px; border-top: 1px solid #eee; display: flex; justify-content: space-between; align-items: center; }
+      .live-clock { font-size: 16px; font-weight: bold; color: #475569; }
+      
+      .loading-overlay { display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0, 0, 0, 0.7); z-index: 9999; justify-content: center; align-items: center; }
+      .loading-overlay.active { display: flex; }
+      .loading-content { background: white; padding: 30px 40px; border-radius: 12px; text-align: center; box-shadow: 0 10px 30px rgba(0,0,0,0.3); }
+      .loading-spinner { width: 50px; height: 50px; border: 5px solid #f3f3f3; border-top: 5px solid #0284c7; border-radius: 50%; animation: spin 1s linear infinite; margin: 0 auto 15px auto; }
+      .loading-text { font-size: 16px; font-weight: bold; color: #333; margin: 0; }
+      .loading-subtext { font-size: 13px; color: #666; margin: 5px 0 0 0; }
+      
+      /* Manual clock-out employee list styling */
+      .employee-checkbox:hover { transform: scale(1.1); }
+      .employee-card:hover { cursor: pointer; }
+      #employeeCheckboxList::-webkit-scrollbar { width: 10px; }
+      #employeeCheckboxList::-webkit-scrollbar-track { background: #f1f1f1; border-radius: 10px; margin: 4px; }
+      #employeeCheckboxList::-webkit-scrollbar-thumb { background: linear-gradient(135deg, #0288D1 0%, #0277BD 100%); border-radius: 10px; border: 2px solid #f1f1f1; }
+      #employeeCheckboxList::-webkit-scrollbar-thumb:hover { background: linear-gradient(135deg, #0277BD 0%, #01579B 100%); }
+    </style>
+  </head>
+  <body>
+
+    <datalist id="employeeList">
+      <!-- Populated dynamically from Google Apps Script -->
+    </datalist>
+
+    <datalist id="locationList">
+      <!-- Populated dynamically from Google Apps Script -->
+    </datalist>
+
+    <div class="container" id="mainContainer">
+      <h2>COLLAB ATTENDANCE SYSTEM</h2>
+
+      <div class="form-group">
+        <label>Enter Employee ID:</label>
+        <input type="text" id="mainFullName" placeholder="Enter your Employee ID..." required autocomplete="off">
+      </div>
+
+      <div class="form-group">
+        <label>Select Location:</label>
+        <select name="locationSelect" id="locationSelect">
+          <? for (var i = 0; i < locations.length; i++) { ?>
+            <option value="<?= locations[i] ?>"><?= locations[i] ?></option>
+          <? } ?>
+        </select>
+      </div>
+
+      <div class="camera-box">
+        <input type="file" name="mobileCamera" id="mobileCamera" accept="image/*,image/heic,image/heif" capture="environment" style="display:none;" onchange="handleMobilePhoto(this)">
+        <canvas id="canvas" style="display:none;"></canvas>
+        <img id="photo-preview" style="display:none;" crossorigin="anonymous" />
+        <div class="camera-status" id="cameraStatus">No Photo Captured Yet</div>
+      </div>
+
+      <button id="btnCapture" class="btn btn-capture" onclick="openNativeCamera()">📷 OPEN PHONE CAMERA</button>
+      
+      <!-- New 4-button attendance grid: Clock In/Out on top, Break Start/End on bottom -->
+      <div class="attendance-grid">
+        <button id="btnClockIn" class="btn btn-clock-in" onclick="submitAttendance('IN')" disabled>
+          🕐 CLOCK IN
+        </button>
+        <button id="btnClockOut" class="btn btn-clock-out" onclick="submitAttendance('OUT')" disabled>
+          🕐 CLOCK OUT
+        </button>
+        <button id="btnBreakStart" class="btn btn-break-start" onclick="submitAttendance('BREAK_START')" disabled>
+          ☕ BREAK START
+        </button>
+        <button id="btnBreakEnd" class="btn btn-break-end" onclick="submitAttendance('BREAK_END')" disabled>
+          ▶️ BREAK END
+        </button>
+      </div>
+
+      <button class="btn btn-ot-trigger" onclick="openAdminLogin()">⏰ REPORT OVERTIME WORK</button>
+
+      <button class="btn btn-trigger-clockout" onclick="openClockOutTriggerMenu()">⚙️ MANUAL AUTO CLOCK-OUT</button>
+      
+      <button class="btn btn-deploy-trigger" onclick="openDeploymentLogin()">🚗 DEPLOY EMPLOYEE</button>
+
+      <div id="loader" class="loader"></div>
+      <div id="message" class="message"></div>
+
+      <div class="clock-schedule-container">
+        <div id="liveClock" class="live-clock">00:00:00 AM</div>
+      </div>
+    </div>
+
+    <div id="adminLoginModal" class="modal-overlay admin-login-modal">
+      <div class="modal-content">
+        <h3>🔐 Admin Authentication</h3>
+        <div class="form-group">
+          <label>Admin ID:</label>
+          <input type="text" id="adminIdInput" placeholder="Enter Admin ID" autocomplete="off">
+        </div>
+        <div class="form-group">
+          <label>Admin Code:</label>
+          <input type="password" id="adminCodeInput" placeholder="Enter Admin Code" autocomplete="off">
+        </div>
+        <div class="error-text" id="adminErrorText">Invalid Admin ID or Code.</div>
+        <button class="btn btn-login" onclick="authenticateAdmin()">LOGIN</button>
+        <button class="btn btn-cancel" onclick="closeAdminLogin()">CANCEL</button>
+      </div>
+    </div>
+
+    <div id="clockOutTriggerModal" class="modal-overlay admin-login-modal">
+      <div class="modal-content" style="max-width: 500px;">
+        <h3>⚙️ Manual Auto Clock-Out</h3>
+        <p style="font-size: 13px; color: #666; margin-bottom: 15px;">Select employees to clock out manually. This will update their attendance records.</p>
+        
+        <div style="margin-bottom: 20px;">
+          <label style="font-weight: 600; margin-bottom: 10px; display: block; color: #1a1a1a; font-size: 15px;">Select Shift:</label>
+          <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 12px;">
+            <button id="btnSelectAM" class="btn" onclick="selectShiftType('AM')" style="background: linear-gradient(135deg, #00C853 0%, #009624 100%); padding: 14px 12px; border-radius: 10px; font-size: 14px; font-weight: 600; display: flex; flex-direction: column; align-items: center; justify-content: center; transition: all 0.3s; box-shadow: 0 4px 12px rgba(0, 200, 83, 0.3);">
+              <span style="font-size: 24px; margin-bottom: 4px;">🌅</span>
+              <span>AM Shift</span>
+              <span style="font-size: 12px; opacity: 0.9; margin-top: 2px;">(12:30 PM)</span>
+            </button>
+            <button id="btnSelectPM" class="btn" onclick="selectShiftType('PM')" style="background: linear-gradient(135deg, #0288D1 0%, #0277BD 100%); padding: 14px 12px; border-radius: 10px; font-size: 14px; font-weight: 600; display: flex; flex-direction: column; align-items: center; justify-content: center; transition: all 0.3s; box-shadow: 0 4px 12px rgba(2, 136, 209, 0.3);">
+              <span style="font-size: 24px; margin-bottom: 4px;">🌆</span>
+              <span>PM Shift</span>
+              <span style="font-size: 12px; opacity: 0.9; margin-top: 2px;">(5:30 PM)</span>
+            </button>
+          </div>
+        </div>
+        
+        <div id="employeeListContainer" style="display: none;">
+          <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px; padding-bottom: 10px; border-bottom: 2px solid #e0e0e0;">
+            <label style="font-weight: 600; color: #1a1a1a; font-size: 15px;">Active Employees:</label>
+            <div style="display: flex; gap: 8px;">
+              <button onclick="selectAllEmployees()" style="font-size: 12px; padding: 6px 12px; background: linear-gradient(135deg, #0288D1 0%, #0277BD 100%); color: white; border: none; border-radius: 6px; cursor: pointer; font-weight: 600; box-shadow: 0 2px 6px rgba(2, 136, 209, 0.3); transition: all 0.2s;" onmouseover="this.style.transform='translateY(-2px)'; this.style.boxShadow='0 4px 10px rgba(2, 136, 209, 0.4)';" onmouseout="this.style.transform='translateY(0)'; this.style.boxShadow='0 2px 6px rgba(2, 136, 209, 0.3)';">Select All</button>
+              <button onclick="deselectAllEmployees()" style="font-size: 12px; padding: 6px 12px; background: #e0e0e0; color: #555; border: none; border-radius: 6px; cursor: pointer; font-weight: 600; transition: all 0.2s;" onmouseover="this.style.background='#d0d0d0';" onmouseout="this.style.background='#e0e0e0';">Clear All</button>
+            </div>
+          </div>
+          <div id="employeeCheckboxList" style="max-height: 300px; overflow-y: auto; border: 2px solid #e0e0e0; border-radius: 10px; padding: 12px; background: #fafafa;">
+            <p style="color: #999; text-align: center; margin: 20px 0;">Loading employees...</p>
+          </div>
+          <button id="btnConfirmClockOut" class="btn btn-login" onclick="confirmManualClockOut()" style="margin-top: 18px; background: linear-gradient(135deg, #D50000 0%, #9A0000 100%); box-shadow: 0 4px 12px rgba(213, 0, 0, 0.3); padding: 14px; border-radius: 8px; font-size: 15px; transition: all 0.3s;" onmouseover="this.style.transform='translateY(-2px)'; this.style.boxShadow='0 6px 20px rgba(213, 0, 0, 0.4)';" onmouseout="this.style.transform='translateY(0)'; this.style.boxShadow='0 4px 12px rgba(213, 0, 0, 0.3)';" disabled>
+            CLOCK OUT SELECTED EMPLOYEES
+          </button>
+        </div>
+        
+        <div class="error-text" id="triggerStatusText" style="color: #2E7D32; display: none;">Processing...</div>
+        <button class="btn btn-cancel" onclick="closeClockOutTriggerMenu()">CLOSE</button>
+      </div>
+    </div>
+
+    <div class="ot-panel" id="otPanel">
+      <div class="container" style="box-shadow: none; padding: 5px;">
+        <h2>OVERTIME SYSTEM LOG (ADMIN)</h2>
+        
+        <div class="form-group">
+          <label>Select Employee:</label>
+          <input type="text" id="otFullName" list="employeeList" placeholder="Type ID or Name to search..." required>
+        </div>
+
+        <div class="time-row">
+          <div class="form-group">
+            <label>Start Time:</label>
+            <input type="time" id="otStart" name="otStart" onchange="calculateOvertimeHours()" oninput="calculateOvertimeHours()">
+          </div>
+          <div class="form-group">
+            <label>End Time:</label>
+            <input type="time" id="otEnd" name="otEnd" onchange="calculateOvertimeHours()" oninput="calculateOvertimeHours()">
+          </div>
+        </div>
+
+        <div class="computed-box" id="computedHoursBox">
+          Computed Duration: 0.00 Hours
+        </div>
+
+        <div class="form-group">
+          <label>Remarks (Optional):</label>
+          <input type="text" id="otRemarks" placeholder="Enter any remarks or notes..." maxlength="200">
+        </div>
+
+        <button id="btnOtSubmit" class="btn btn-ot-submit" onclick="submitOvertimeLog()" disabled>SUBMIT OVERTIME REPORT</button>
+        <button class="btn btn-ot-back" onclick="toggleOvertimePanel(false)">← BACK TO REGULAR SYSTEM</button>
+        
+        <div id="otLoader" class="loader" style="border-top-color: #ff9100;"></div>
+        <div id="otMessage" class="message"></div>
+      </div>
+    </div>
+
+    <div class="deploy-panel" id="deployPanel">
+      <div class="container" style="box-shadow: none; padding: 5px;">
+        <h2>🚗 EMPLOYEE DEPLOYMENT (ADMIN)</h2>
+        
+        <div class="form-group">
+          <label>Select Employee:</label>
+          <input type="text" id="deployEmployeeName" list="employeeList" placeholder="Type ID or Name to search..." required>
+        </div>
+
+        <div class="form-group">
+          <label>Deployment Location:</label>
+          <input type="text" id="deployLocation" placeholder="Enter deployment location..." maxlength="200" required>
+        </div>
+
+        <div class="form-group">
+          <label>Purpose:</label>
+          <input type="text" id="deployPurpose" placeholder="Enter deployment purpose..." maxlength="200" required>
+        </div>
+
+        <div class="form-group">
+          <label>Expected Return Time (Optional):</label>
+          <input type="time" id="deployReturnTime">
+        </div>
+
+        <div class="form-group">
+          <label>Remarks (Optional):</label>
+          <input type="text" id="deployRemarks" placeholder="Enter any remarks or notes..." maxlength="200">
+        </div>
+
+        <button id="btnDeploySubmit" class="btn btn-deploy-submit" onclick="submitDeployment()" disabled>SAVE DEPLOYMENT</button>
+        <button class="btn btn-deploy-back" onclick="toggleDeploymentPanel(false)">← BACK TO MAIN SYSTEM</button>
+        
+        <div id="deployLoader" class="loader" style="border-top-color: #0284c7;"></div>
+        <div id="deployMessage" class="message"></div>
+      </div>
+    </div>
+
+    <div id="successModal" class="modal-overlay">
+      <div class="modal-content">
+        <div class="success-icon">✓</div>
+        <h3 id="modalTitle">Success!</h3>
+        <p id="modalMessage">Your log has been recorded.</p>
+        <button class="modal-btn" onclick="closeSuccessModal()">OK</button>
+      </div>
+    </div>
+
+    <!-- Reusable Loading Overlay -->
+    <div id="loadingOverlay" class="loading-overlay">
+      <div class="loading-content">
+        <div class="loading-spinner"></div>
+        <p class="loading-text">Submitting...</p>
+        <p class="loading-subtext">Please wait, do not close this page.</p>
+      </div>
+    </div>
+
+    <!-- Custom Confirmation Modal -->
+    <div id="confirmModal" class="modal-overlay">
+      <div class="modal-content" style="max-width: 380px;">
+        <div style="width: 70px; height: 70px; background: linear-gradient(135deg, #FFF3E0 0%, #FFE0B2 100%); color: #F57C00; border-radius: 50%; font-size: 36px; line-height: 70px; margin: 0 auto 20px auto; font-weight: bold; box-shadow: 0 4px 15px rgba(245, 124, 0, 0.2);">?</div>
+        <h3 id="confirmTitle" style="margin: 0 0 12px 0; color: #1a1a1a; font-size: 20px; font-weight: 600;">Confirm Action</h3>
+        <p id="confirmMessage" style="margin: 0 0 25px 0; color: #555; font-size: 15px; line-height: 1.5;">Are you sure you want to proceed?</p>
+        <div style="display: flex; gap: 12px;">
+          <button onclick="confirmModalResponse(false)" style="flex: 1; background: #e0e0e0; color: #333; border: none; padding: 13px; border-radius: 8px; font-size: 15px; font-weight: 600; cursor: pointer; transition: all 0.3s;">Cancel</button>
+          <button id="confirmOkBtn" onclick="confirmModalResponse(true)" style="flex: 1; background: linear-gradient(135deg, #2E7D32 0%, #1B5E20 100%); color: white; border: none; padding: 13px; border-radius: 8px; font-size: 15px; font-weight: 600; cursor: pointer; box-shadow: 0 4px 12px rgba(46, 125, 50, 0.3); transition: all 0.3s;">Confirm</button>
+        </div>
+      </div>
+    </div>
+
+    <script>
+      // ==========================================================================
+      // CONFIGURATION - Update this URL with your deployed Google Apps Script URL
+      // ==========================================================================
+      const GOOGLE_SCRIPT_URL = "https://script.google.com/macros/s/AKfycbzzcWQCdHFSN9Ik8KCe4kDGrusvyAyc6t6jYLff2bNeUxdT6kZ3lSBiYsMeqv3xzfpj/exec";
+      
+      // ==========================================================================
+      // API HELPER FUNCTIONS
+      // ==========================================================================
+      
+      /**
+       * Make API call to Google Apps Script
+       * @param {string} action - The function name to call
+       * @param {object} params - Parameters to pass to the function
+       * @returns {Promise} Promise that resolves with the API response
+       */
+      async function callGoogleScript(action, params = {}) {
+        try {
+          const url = new URL(GOOGLE_SCRIPT_URL);
+          url.searchParams.append('action', action);
+          
+          // Add params as query parameters
+          Object.keys(params).forEach(key => {
+            const value = params[key];
+            if (value !== null && value !== undefined) {
+              url.searchParams.append(key, typeof value === 'object' ? JSON.stringify(value) : value);
+            }
+          });
+          
+          const response = await fetch(url.toString(), {
+            method: 'GET',
+            redirect: 'follow'
+          });
+          
+          if (!response.ok) {
+            throw new Error(`HTTP error! status: ${response.status}`);
+          }
+          
+          const data = await response.json();
+          return data;
+        } catch (error) {
+          console.error('API call error:', error);
+          throw error;
+        }
+      }
+      
+      /**
+       * Make POST API call to Google Apps Script (for large payloads)
+       * @param {string} action - The function name to call
+       * @param {object} payload - Data to send
+       * @returns {Promise} Promise that resolves with the API response
+       */
+      async function postGoogleScript(action, payload = {}) {
+        try {
+          const response = await fetch(GOOGLE_SCRIPT_URL, {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({
+              action: action,
+              ...payload
+            }),
+            redirect: 'follow'
+          });
+          
+          if (!response.ok) {
+            throw new Error(`HTTP error! status: ${response.status}`);
+          }
+          
+          const data = await response.json();
+          return data;
+        } catch (error) {
+          console.error('API POST call error:', error);
+          throw error;
+        }
+      }
+      
+      // ==========================================================================
+      // INITIALIZATION
+      // ==========================================================================
+      
+      /**
+       * Load initial data (employees and locations) from Google Apps Script
+       */
+      async function loadInitialData() {
+        try {
+          showLoading("Loading data...");
+          
+          // Fetch employees and locations
+          const data = await callGoogleScript('getInitialData');
+          
+          if (data.success) {
+            // Populate employee datalist
+            const employeeList = document.getElementById('employeeList');
+            employeeList.innerHTML = '';
+            data.employees.forEach(emp => {
+              const option = document.createElement('option');
+              option.value = emp;
+              employeeList.appendChild(option);
+            });
+            
+            // Populate location dropdown
+            const locationSelect = document.getElementById('locationSelect');
+            locationSelect.innerHTML = '';
+            data.locations.forEach(loc => {
+              const option = document.createElement('option');
+              option.value = loc;
+              option.textContent = loc;
+              locationSelect.appendChild(option);
+            });
+            
+            hideLoading();
+          } else {
+            hideLoading();
+            showMessage("Error loading data: " + (data.message || "Unknown error"), "error");
+          }
+        } catch (error) {
+          hideLoading();
+          showMessage("Failed to connect to server: " + error.message, "error");
+        }
+      }
+      
+      // Load data when page loads
+      window.addEventListener('DOMContentLoaded', function() {
+        loadInitialData();
+        updateLiveClock();
+      });
+      
+      // ==========================================================================
+      // GLOBAL VARIABLES
+      // ==========================================================================
+      
+      var photoPreview = document.getElementById('photo-preview');
+      var cameraStatus = document.getElementById('cameraStatus');
+      var loader = document.getElementById('loader');
+      var msgDiv = document.getElementById('message');
+      
+      var btnClockIn = document.getElementById('btnClockIn');
+      var btnBreakStart = document.getElementById('btnBreakStart');
+      var btnBreakEnd = document.getElementById('btnBreakEnd');
+      var btnClockOut = document.getElementById('btnClockOut');
+      var btnCapture = document.getElementById('btnCapture');
+      var successModal = document.getElementById('successModal');
+
+      var base64Photo = "";
+      var computedOTHours = 0;
+      
+      // Store authenticated admin info
+      var authenticatedAdmin = null;
+      
+      // Store location and timestamp for photo overlay
+      var capturedLocation = null;
+      var capturedTimestamp = null;
+      var capturedAddress = "Location unavailable";
+      
+      // Current attendance status
+      var currentStatus = {
+        hasClockIn: false,
+        hasBreakStart: false,
+        hasBreakEnd: false,
+        hasClockOut: false
+      };
+      
+      // Custom confirm modal
+      var confirmModalCallback = null;
+      
+      function showCustomConfirm(title, message, callback) {
+        document.getElementById('confirmTitle').innerText = title;
+        document.getElementById('confirmMessage').innerText = message;
+        document.getElementById('confirmModal').style.display = 'flex';
+        confirmModalCallback = callback;
+      }
+      
+      function confirmModalResponse(confirmed) {
+        document.getElementById('confirmModal').style.display = 'none';
+        if (confirmModalCallback) {
+          confirmModalCallback(confirmed);
+          confirmModalCallback = null;
+        }
+      }
+
+      // ==========================================================================
+      // LIVE CLOCK
+      // ==========================================================================
+      
+      function updateLiveClock() {
+        var now = new Date();
+        var hours = now.getHours();
+        var minutes = now.getMinutes();
+        var seconds = now.getSeconds();
+        var ampm = hours >= 12 ? 'PM' : 'AM';
+        hours = hours % 12;
+        hours = hours ? hours : 12;
+        minutes = minutes < 10 ? '0' + minutes : minutes;
+        seconds = seconds < 10 ? '0' + seconds : seconds;
+        var timeString = hours + ':' + minutes + ':' + seconds + ' ' + ampm;
+        document.getElementById('liveClock').innerText = timeString;
+      }
+      
+      setInterval(updateLiveClock, 1000);
+      updateLiveClock();
+
+      // ==========================================================================
+      // REUSABLE LOADING OVERLAY FUNCTIONS
+      // ==========================================================================
+      
+      function showLoading(message) {
+        var overlay = document.getElementById('loadingOverlay');
+        var loadingText = overlay.querySelector('.loading-text');
+        if (message) {
+          loadingText.innerText = message;
+        } else {
+          loadingText.innerText = "Submitting...";
+        }
+        overlay.classList.add('active');
+        disableAllButtons();
+      }
+      
+      function hideLoading() {
+        var overlay = document.getElementById('loadingOverlay');
+        overlay.classList.remove('active');
+        enableButtonsBasedOnStatus();
+      }
+      
+      function disableAllButtons() {
+        btnClockIn.disabled = true;
+        btnBreakStart.disabled = true;
+        btnBreakEnd.disabled = true;
+        btnClockOut.disabled = true;
+        btnCapture.disabled = true;
+        document.getElementById('btnOtSubmit').disabled = true;
+        if (document.getElementById('btnDeploySubmit')) {
+          document.getElementById('btnDeploySubmit').disabled = true;
+        }
+      }
+      
+      function enableButtonsBasedOnStatus() {
+        btnCapture.disabled = false;
+        updateButtonStates();
+        validateOtFormRequirement();
+        validateDeployFormRequirement();
+      }
+
+      // ==========================================================================
+      // CAMERA FUNCTIONS WITH LOCATION & TIMESTAMP OVERLAY
+      // ==========================================================================
+      
+      function openNativeCamera() {
+        document.getElementById('mobileCamera').click();
+      }
+
+      function handleMobilePhoto(input) {
+        var file = input.files[0];
+        if (!file) return;
+
+        document.getElementById('cameraStatus').innerText = "Processing image...";
+        document.getElementById('cameraStatus').style.display = 'block';
+        
+        // Capture location and timestamp, then process image
+        captureLocationAndTimestamp(function() {
+          document.getElementById('cameraStatus').innerText = "Preparing photo...";
+          
+          var reader = new FileReader();
+          reader.onload = function(e) {
+            var img = new Image();
+            
+            // Add error handler for iOS
+            img.onerror = function() {
+              console.error("Image loading failed, attempting fallback...");
+              // Fallback: use the raw image without canvas processing
+              base64Photo = e.target.result;
+              photoPreview.src = base64Photo;
+              photoPreview.style.display = 'block';
+              cameraStatus.style.display = 'none';
+              btnCapture.innerText = "🔄 RE-TAKE PHOTO";
+              btnCapture.style.backgroundColor = "#e0a800";
+              updateButtonStates();
+              clearMessage();
+            };
+            
+            img.onload = function() {
+              try {
+                document.getElementById('cameraStatus').innerText = "Adding location overlay...";
+                applyOverlayToImage(img);
+              } catch (error) {
+                console.error("Canvas processing failed:", error);
+                // Fallback: use the raw image without overlay
+                base64Photo = e.target.result;
+                photoPreview.src = base64Photo;
+                photoPreview.style.display = 'block';
+                cameraStatus.style.display = 'none';
+                btnCapture.innerText = "🔄 RE-TAKE PHOTO";
+                btnCapture.style.backgroundColor = "#e0a800";
+                updateButtonStates();
+                clearMessage();
+              }
+            };
+            
+            // Set crossOrigin for better iOS compatibility
+            img.crossOrigin = "anonymous";
+            img.src = e.target.result;
+          };
+          
+          reader.onerror = function() {
+            console.error("FileReader failed");
+            document.getElementById('cameraStatus').innerText = "Error reading image. Please try again.";
+            document.getElementById('cameraStatus').style.color = "#D50000";
+            setTimeout(function() {
+              document.getElementById('cameraStatus').innerText = "No Photo Captured Yet";
+              document.getElementById('cameraStatus').style.color = "white";
+            }, 3000);
+          };
+          
+          reader.readAsDataURL(file);
+        });
+      }
+      
+      function captureLocationAndTimestamp(callback) {
+        capturedTimestamp = new Date();
+        
+        // Ensure callback is called even if location/geocoding hangs (critical for iOS)
+        var callbackCalled = false;
+        var safeCallback = function() {
+          if (!callbackCalled) {
+            callbackCalled = true;
+            callback();
+          }
+        };
+        
+        // Failsafe timeout - proceed after 8 seconds regardless
+        var failsafeTimer = setTimeout(function() {
+          console.log("Location/geocoding timeout - proceeding without full location data");
+          if (!callbackCalled) {
+            capturedLocation = capturedLocation || { available: false };
+            capturedAddress = capturedAddress || "Location timeout";
+            safeCallback();
+          }
+        }, 8000);
+        
+        if (navigator.geolocation) {
+          navigator.geolocation.getCurrentPosition(
+            function(position) {
+              capturedLocation = {
+                latitude: position.coords.latitude.toFixed(6),
+                longitude: position.coords.longitude.toFixed(6),
+                available: true
+              };
+              
+              // Reverse geocode to get human-readable address with timeout
+              var geocodeTimeout = setTimeout(function() {
+                if (!callbackCalled) {
+                  capturedAddress = "Lat: " + capturedLocation.latitude + ", Lon: " + capturedLocation.longitude;
+                  clearTimeout(failsafeTimer);
+                  safeCallback();
+                }
+              }, 5000);
+              
+              reverseGeocode(capturedLocation.latitude, capturedLocation.longitude, function(address) {
+                clearTimeout(geocodeTimeout);
+                clearTimeout(failsafeTimer);
+                capturedAddress = address || "Address not found";
+                safeCallback();
+              });
+            },
+            function(error) {
+              console.log("Geolocation error: " + error.message);
+              clearTimeout(failsafeTimer);
+              capturedLocation = { available: false };
+              capturedAddress = "Location unavailable";
+              safeCallback();
+            },
+            { enableHighAccuracy: true, timeout: 6000, maximumAge: 0 }
+          );
+        } else {
+          clearTimeout(failsafeTimer);
+          capturedLocation = { available: false };
+          capturedAddress = "Location unavailable";
+          safeCallback();
+        }
+      }
+      
+      function reverseGeocode(lat, lon, callback) {
+        var url = "https://nominatim.openstreetmap.org/reverse?format=json&lat=" + lat + "&lon=" + lon + "&zoom=18&addressdetails=1";
+        
+        // Use AbortController for timeout support (iOS compatible)
+        var controller = new AbortController();
+        var timeoutId = setTimeout(function() {
+          controller.abort();
+        }, 4000); // 4 second timeout for geocoding
+        
+        fetch(url, {
+          headers: { 'User-Agent': 'CollabAttendanceSystem/1.0' },
+          signal: controller.signal
+        })
+        .then(function(response) { 
+          clearTimeout(timeoutId);
+          return response.json(); 
+        })
+        .then(function(data) {
+          if (data && data.display_name) {
+            callback(data.display_name);
+          } else if (data && data.address) {
+            var addr = data.address;
+            var addressParts = [];
+            if (addr.road) addressParts.push(addr.road);
+            if (addr.suburb || addr.neighbourhood) addressParts.push(addr.suburb || addr.neighbourhood);
+            if (addr.city || addr.town || addr.village) addressParts.push(addr.city || addr.town || addr.village);
+            if (addr.state) addressParts.push(addr.state);
+            callback(addressParts.join(", "));
+          } else {
+            callback("Address not found");
+          }
+        })
+        .catch(function(error) {
+          clearTimeout(timeoutId);
+          console.log("Geocoding error: " + error.message);
+          callback("Lat: " + lat + ", Lon: " + lon);
+        });
+      }
+      
+      function applyOverlayToImage(img) {
+        var canvas = document.getElementById('canvas');
+        var ctx = canvas.getContext('2d');
+        
+        // Check for iOS and use different processing if needed
+        var isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent) && !window.MSStream;
+        
+        var max_width = 800;
+        var width = img.width;
+        var height = img.height;
+        
+        // Handle zero or invalid dimensions
+        if (!width || !height || width <= 0 || height <= 0) {
+          console.error("Invalid image dimensions:", width, height);
+          throw new Error("Invalid image dimensions");
+        }
+        
+        if (width > max_width) {
+          height = Math.round((height * max_width) / width);
+          width = max_width;
+        }
+        
+        canvas.width = width;
+        canvas.height = height;
+        
+        // Clear canvas first (important for iOS)
+        ctx.clearRect(0, 0, width, height);
+        
+        // Draw image with error handling
+        try {
+          ctx.drawImage(img, 0, 0, width, height);
+        } catch (error) {
+          console.error("Failed to draw image on canvas:", error);
+          throw error;
+        }
+        
+        // Prepare overlay text
+        var dateTimeStr = formatDateTime(capturedTimestamp);
+        var locationStr = capturedLocation && capturedLocation.available 
+          ? "Lat: " + capturedLocation.latitude + ", Lon: " + capturedLocation.longitude
+          : "Location: Unavailable";
+        var addressStr = capturedAddress;
+        
+        // Overlay styling
+        var padding = 10;
+        var lineHeight = 20;
+        var fontSize = 14;
+        var overlayHeight = (lineHeight * 3) + (padding * 2);
+        
+        // Semi-transparent black background
+        ctx.fillStyle = 'rgba(0, 0, 0, 0.7)';
+        ctx.fillRect(0, height - overlayHeight, width, overlayHeight);
+        
+        // White text
+        ctx.fillStyle = '#FFFFFF';
+        ctx.font = 'bold ' + fontSize + 'px Arial';
+        
+        // Draw text lines
+        ctx.fillText(dateTimeStr, padding, height - overlayHeight + padding + lineHeight);
+        ctx.fillText(locationStr, padding, height - overlayHeight + padding + (lineHeight * 2));
+        
+        // Address might be long, truncate if needed
+        var maxAddressWidth = width - (padding * 2);
+        var truncatedAddress = truncateText(ctx, addressStr, maxAddressWidth);
+        ctx.fillText(truncatedAddress, padding, height - overlayHeight + padding + (lineHeight * 3));
+        
+        // Convert to base64 with quality adjustment for iOS
+        var quality = isIOS ? 0.85 : 0.8;
+        try {
+          base64Photo = canvas.toDataURL('image/jpeg', quality);
+          
+          // Verify the base64 string is valid
+          if (!base64Photo || base64Photo === "data:,") {
+            throw new Error("Canvas toDataURL returned invalid data");
+          }
+        } catch (error) {
+          console.error("Failed to convert canvas to base64:", error);
+          throw error;
+        }
+        
+        // Display preview
+        photoPreview.src = base64Photo;
+        photoPreview.style.display = 'block';
+        cameraStatus.style.display = 'none';
+        
+        btnCapture.innerText = "🔄 RE-TAKE PHOTO";
+        btnCapture.style.backgroundColor = "#e0a800";
+        
+        updateButtonStates();
+        clearMessage();
+      }
+      
+      function formatDateTime(date) {
+        var months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+        var hours = date.getHours();
+        var minutes = date.getMinutes();
+        var seconds = date.getSeconds();
+        var ampm = hours >= 12 ? 'PM' : 'AM';
+        hours = hours % 12;
+        hours = hours ? hours : 12;
+        minutes = minutes < 10 ? '0' + minutes : minutes;
+        seconds = seconds < 10 ? '0' + seconds : seconds;
+        
+        return months[date.getMonth()] + ' ' + date.getDate() + ', ' + date.getFullYear() + 
+               ' ' + hours + ':' + minutes + ':' + seconds + ' ' + ampm;
+      }
+      
+      function truncateText(ctx, text, maxWidth) {
+        var width = ctx.measureText(text).width;
+        if (width <= maxWidth) return text;
+        
+        var ellipsis = '...';
+        var ellipsisWidth = ctx.measureText(ellipsis).width;
+        var len = text.length;
+        
+        while (width + ellipsisWidth > maxWidth && len-- > 0) {
+          text = text.substring(0, len);
+          width = ctx.measureText(text).width;
+        }
+        
+        return text + ellipsis;
+      }
+
+      function resetFormCameraState() {
+        photoPreview.style.display = 'none';
+        cameraStatus.style.display = 'block';
+        cameraStatus.innerText = "No Photo Captured Yet";
+        base64Photo = "";
+        document.getElementById('mobileCamera').value = "";
+        
+        btnCapture.innerText = "📷 OPEN PHONE CAMERA";
+        btnCapture.style.backgroundColor = "#0288D1";
+        
+        updateButtonStates();
+      }
+
+      // ==========================================================================
+      // BUTTON STATE MANAGEMENT
+      // ==========================================================================
+      
+      function updateButtonStates() {
+        var empId = document.getElementById('mainFullName').value.trim();
+        var hasPhoto = base64Photo !== "";
+        
+        // If no employee ID entered, disable all
+        if (!empId) {
+          btnClockIn.disabled = true;
+          btnBreakStart.disabled = true;
+          btnBreakEnd.disabled = true;
+          btnClockOut.disabled = true;
+          return;
+        }
+        
+        // Validate employee ID and fetch current status
+        callGoogleScript('getEmployeeByID', { employeeId: empId })
+          .then(function(result) {
+            if (result.success) {
+              // Valid employee ID, check attendance status
+              checkAttendanceStatus(result.employeeName);
+            } else {
+              // Invalid employee ID, disable all buttons
+              btnClockIn.disabled = true;
+              btnBreakStart.disabled = true;
+              btnBreakEnd.disabled = true;
+              btnClockOut.disabled = true;
+            }
+          })
+          .catch(function(error) {
+            // Error validating, disable all buttons
+            console.error("Error validating employee:", error);
+            btnClockIn.disabled = true;
+            btnBreakStart.disabled = true;
+            btnBreakEnd.disabled = true;
+            btnClockOut.disabled = true;
+          });
+      }
+      
+      function checkAttendanceStatus(employeeName) {
+        // Extract name from "ID - Name" format
+        var finalName = employeeName;
+        if (finalName.indexOf(" - ") !== -1) {
+          finalName = finalName.split(" - ")[1].trim();
+        }
+        
+        callGoogleScript('getAttendanceStatus', { employeeName: finalName })
+          .then(function(status) {
+            currentStatus = status;
+            applyButtonLogic();
+          })
+          .catch(function(error) {
+            console.log("Failed to check status: " + error.message);
+            // Default to all disabled on error
+            btnClockIn.disabled = true;
+            btnBreakStart.disabled = true;
+            btnBreakEnd.disabled = true;
+            btnClockOut.disabled = true;
+          });
+      }
+      
+      function applyButtonLogic() {
+        var hasPhoto = base64Photo !== "";
+        
+        // CLOCK IN: Enable only if no clock in today and has photo
+        btnClockIn.disabled = currentStatus.hasClockIn || !hasPhoto;
+        
+        // BREAK START: Enable only if clocked in, break not started, not clocked out
+        btnBreakStart.disabled = !currentStatus.hasClockIn || currentStatus.hasBreakStart || currentStatus.hasClockOut;
+        
+        // BREAK END: Enable only if break started, break not ended, not clocked out
+        btnBreakEnd.disabled = !currentStatus.hasBreakStart || currentStatus.hasBreakEnd || currentStatus.hasClockOut;
+        
+        // CLOCK OUT: Enable if clocked in, not clocked out, and has photo (NO break requirement)
+        btnClockOut.disabled = !currentStatus.hasClockIn || currentStatus.hasClockOut || !hasPhoto;
+      }
+      
+      // Monitor employee ID change (use blur event for manual entry)
+      document.getElementById('mainFullName').addEventListener('blur', function() {
+        updateButtonStates();
+      });
+      
+      document.getElementById('mainFullName').addEventListener('keypress', function(e) {
+        if (e.key === 'Enter') {
+          updateButtonStates();
+        }
+      });
+      
+      document.getElementById('mainFullName').addEventListener('input', function() {
+        var empId = this.value.trim();
+        if (!empId) {
+          btnClockIn.disabled = true;
+          btnBreakStart.disabled = true;
+          btnBreakEnd.disabled = true;
+          btnClockOut.disabled = true;
+        }
+      });
+
+      // ==========================================================================
+      // ATTENDANCE SUBMISSION WITH CONFIRMATION
+      // ==========================================================================
+      
+      function submitAttendance(type) {
+        var empId = document.getElementById('mainFullName').value.trim();
+        var selectedLocation = document.getElementById('locationSelect').value;
+        
+        console.log("submitAttendance called:", { type: type, empId: empId, location: selectedLocation, hasPhoto: !!base64Photo });
+        
+        if (!empId) {
+          showMessage("Please enter your Employee ID.", "error");
+          return;
+        }
+        
+        // Photo required for Clock In and Clock Out
+        if ((type === 'IN' || type === 'OUT') && !base64Photo) {
+          showMessage("Photo is required! Tap the camera button to take a photo.", "error");
+          return;
+        }
+        
+        // First, validate the Employee ID
+        showLoading("Validating Employee ID...");
+        
+        callGoogleScript('getEmployeeByID', { employeeId: empId })
+          .then(function(result) {
+            console.log("getEmployeeByID result:", result);
+            
+            if (!result.success) {
+              hideLoading();
+              showMessage(result.message, "error");
+              return;
+            }
+            
+            // Employee ID is valid, proceed with confirmation
+            var employeeName = result.employeeName;
+            var fullName = result.fullName;
+            
+            console.log("Employee validated:", { employeeName: employeeName, fullName: fullName });
+            
+            var actionName = "";
+            if (type === 'IN') actionName = "Clock In";
+            else if (type === 'BREAK_START') actionName = "Start Break";
+            else if (type === 'BREAK_END') actionName = "End Break";
+            else if (type === 'OUT') actionName = "Clock Out";
+            
+            hideLoading();
+            
+            showCustomConfirm(
+              "Confirm " + actionName,
+              "Confirm " + actionName + " for " + employeeName + "?",
+              function(confirmed) {
+                if (!confirmed) {
+                  console.log("User cancelled confirmation");
+                  return;
+                }
+                
+                console.log("User confirmed, proceeding with attendance record");
+                showLoading("Processing " + actionName + "...");
+
+                var payload = {
+                  fullName: fullName, // Use validated full name
+                  location: selectedLocation,
+                  type: type,
+                  photoBase64: base64Photo
+                };
+                
+                console.log("Sending payload to recordAttendance:", { 
+                  fullName: payload.fullName, 
+                  location: payload.location, 
+                  type: payload.type, 
+                  hasPhoto: !!payload.photoBase64 
+                });
+
+                postGoogleScript('recordAttendance', payload)
+                  .then(function(response) {
+                    console.log("recordAttendance success:", response);
+                    hideLoading();
+                    showSuccessModal(actionName + ' Successful', response.message || response);
+                    
+                    // Reset form after Clock In or Clock Out
+                    if (type === 'IN' || type === 'OUT') {
+                      document.getElementById('mainFullName').value = ""; 
+                      resetFormCameraState();
+                      currentStatus = {
+                        hasClockIn: false,
+                        hasBreakStart: false,
+                        hasBreakEnd: false,
+                        hasClockOut: false
+                      };
+                    } else {
+                      // For break actions, just refresh status
+                      checkAttendanceStatus(employeeName);
+                    }
+                  })
+                  .catch(function(error) {
+                    hideLoading();
+                    console.error("recordAttendance failed:", error);
+                    showMessage("Error recording attendance: " + (error.message || error), "error");
+                  });
+              }
+            );
+          })
+          .catch(function(error) {
+            hideLoading();
+            console.error("getEmployeeByID failed:", error);
+            showMessage("Error: " + error.message, "error");
+          });
+      }
+
+      // ==========================================================================
+      // MODAL FUNCTIONS
+      // ==========================================================================
+      
+      function showSuccessModal(title, message) {
+        document.getElementById('modalTitle').innerText = title;
+        document.getElementById('modalMessage').innerText = message;
+        document.getElementById('successModal').style.display = 'flex';
+      }
+
+      function closeSuccessModal() {
+        document.getElementById('successModal').style.display = 'none';
+      }
+
+      function showMessage(text, statusClass) {
+        msgDiv.innerText = text;
+        msgDiv.className = "message " + statusClass;
+      }
+      
+      function clearMessage() {
+        msgDiv.style.display = 'none';
+      }
+
+      // ==========================================================================
+      // ADMIN LOGIN FUNCTIONS
+      // ==========================================================================
+      
+      function openAdminLogin() {
+        document.getElementById('adminIdInput').value = "";
+        document.getElementById('adminCodeInput').value = "";
+        document.getElementById('adminErrorText').style.display = 'none';
+        document.getElementById('adminLoginModal').style.display = 'flex';
+        window.pendingAction = 'overtime';
+      }
+      
+      function openDeploymentLogin() {
+        document.getElementById('adminIdInput').value = "";
+        document.getElementById('adminCodeInput').value = "";
+        document.getElementById('adminErrorText').style.display = 'none';
+        document.getElementById('adminLoginModal').style.display = 'flex';
+        window.pendingAction = 'deployment';
+      }
+
+      function closeAdminLogin() {
+        document.getElementById('adminLoginModal').style.display = 'none';
+      }
+
+      function openClockOutTriggerMenu() {
+        document.getElementById('adminIdInput').value = "";
+        document.getElementById('adminCodeInput').value = "";
+        document.getElementById('adminErrorText').style.display = 'none';
+        document.getElementById('adminLoginModal').style.display = 'flex';
+        window.pendingAction = 'clockOutTrigger';
+      }
+
+      function closeClockOutTriggerMenu() {
+        document.getElementById('clockOutTriggerModal').style.display = 'none';
+        document.getElementById('employeeListContainer').style.display = 'none';
+        document.getElementById('triggerStatusText').style.display = 'none';
+        selectedShiftType = null;
+        authenticatedAdmin = null;
+      }
+
+      var selectedShiftType = null;
+      var activeEmployeesList = [];
+
+      function selectShiftType(shiftType) {
+        selectedShiftType = shiftType;
+        
+        // Update button states
+        var btnAM = document.getElementById('btnSelectAM');
+        var btnPM = document.getElementById('btnSelectPM');
+        
+        if (shiftType === 'AM') {
+          btnAM.style.opacity = '1';
+          btnAM.style.border = '3px solid #00C853';
+          btnAM.style.transform = 'scale(1.05)';
+          btnAM.style.boxShadow = '0 6px 20px rgba(0, 200, 83, 0.4)';
+          btnPM.style.opacity = '0.6';
+          btnPM.style.border = '2px solid transparent';
+          btnPM.style.transform = 'scale(1)';
+          btnPM.style.boxShadow = '0 4px 12px rgba(2, 136, 209, 0.3)';
+        } else {
+          btnPM.style.opacity = '1';
+          btnPM.style.border = '3px solid #0288D1';
+          btnPM.style.transform = 'scale(1.05)';
+          btnPM.style.boxShadow = '0 6px 20px rgba(2, 136, 209, 0.4)';
+          btnAM.style.opacity = '0.6';
+          btnAM.style.border = '2px solid transparent';
+          btnAM.style.transform = 'scale(1)';
+          btnAM.style.boxShadow = '0 4px 12px rgba(0, 200, 83, 0.3)';
+        }
+        
+        // Load active employees
+        loadActiveEmployees();
+      }
+
+      function loadActiveEmployees() {
+        var container = document.getElementById('employeeListContainer');
+        var listDiv = document.getElementById('employeeCheckboxList');
+        
+        container.style.display = 'block';
+        listDiv.innerHTML = '<div style="text-align: center; padding: 30px 20px;"><div style="font-size: 48px; margin-bottom: 10px; opacity: 0.3;">⏳</div><p style="color: #999; margin: 0; font-size: 14px;">Loading active employees...</p></div>';
+        
+        callGoogleScript('getActiveClockedInEmployees')
+          .then(function(result) {
+            if (result.success && result.employees.length > 0) {
+              activeEmployeesList = result.employees;
+              displayEmployeeCheckboxes(result.employees);
+            } else if (result.success && result.employees.length === 0) {
+              listDiv.innerHTML = '<div style="text-align: center; padding: 40px 20px;"><div style="font-size: 56px; margin-bottom: 12px; opacity: 0.4;">✓</div><p style="color: #2E7D32; margin: 0; font-weight: 600; font-size: 15px;">All employees clocked out!</p><p style="color: #999; margin: 8px 0 0 0; font-size: 13px;">No active employees at the moment.</p></div>';
+              document.getElementById('btnConfirmClockOut').disabled = true;
+            } else {
+              listDiv.innerHTML = '<div style="text-align: center; padding: 30px 20px;"><div style="font-size: 48px; margin-bottom: 10px; opacity: 0.3;">⚠️</div><p style="color: #D50000; margin: 0; font-size: 14px;">Error: ' + result.message + '</p></div>';
+            }
+          })
+          .catch(function(error) {
+            listDiv.innerHTML = '<div style="text-align: center; padding: 30px 20px;"><div style="font-size: 48px; margin-bottom: 10px; opacity: 0.3;">⚠️</div><p style="color: #D50000; margin: 0; font-size: 14px;">Error loading employees</p><p style="color: #999; margin: 8px 0 0 0; font-size: 12px;">' + error.message + '</p></div>';
+          });
+      }
+
+      function displayEmployeeCheckboxes(employees) {
+        var listDiv = document.getElementById('employeeCheckboxList');
+        var html = '';
+        
+        for (var i = 0; i < employees.length; i++) {
+          var emp = employees[i];
+          var breakInfo = '';
+          var breakBadge = '';
+          
+          if (emp.breakStart && emp.breakEnd) {
+            breakInfo = emp.breakStart + ' - ' + emp.breakEnd;
+            breakBadge = '<span style="display: inline-block; padding: 3px 8px; background: #E8F5E9; color: #2E7D32; border-radius: 12px; font-size: 11px; font-weight: 600; margin-left: 8px;">Break Complete</span>';
+          } else if (emp.breakStart) {
+            breakInfo = 'Started: ' + emp.breakStart;
+            breakBadge = '<span style="display: inline-block; padding: 3px 8px; background: #FFF3E0; color: #F57C00; border-radius: 12px; font-size: 11px; font-weight: 600; margin-left: 8px;">On Break</span>';
+          }
+          
+          html += '<div style="padding: 12px; border: 2px solid #e8e8e8; background: white; margin-bottom: 8px; border-radius: 10px; transition: all 0.2s ease; cursor: pointer;" class="employee-card" onmouseover="this.style.borderColor=\'#0288D1\'; this.style.boxShadow=\'0 4px 12px rgba(2, 136, 209, 0.15)\';" onmouseout="this.style.borderColor=\'#e8e8e8\'; this.style.boxShadow=\'none\';">';
+          html += '<label style="display: flex; align-items: flex-start; cursor: pointer; margin: 0;">';
+          html += '<input type="checkbox" class="employee-checkbox" value="' + emp.name + '" onchange="updateClockOutButton()" style="margin-right: 12px; margin-top: 3px; width: 20px; height: 20px; cursor: pointer; accent-color: #0288D1;">';
+          html += '<div style="flex: 1;">';
+          html += '<div style="display: flex; align-items: center; margin-bottom: 6px;">';
+          html += '<span style="font-weight: 600; color: #1a1a1a; font-size: 15px;">' + emp.name + '</span>';
+          html += breakBadge;
+          html += '</div>';
+          html += '<div style="display: flex; align-items: center; color: #666; font-size: 13px; margin-bottom: 4px;">';
+          html += '<span style="display: inline-block; width: 4px; height: 4px; background: #0288D1; border-radius: 50%; margin-right: 8px;"></span>';
+          html += '<strong style="color: #555; margin-right: 6px;">Time In:</strong>' + emp.timeIn;
+          html += '</div>';
+          if (breakInfo) {
+            html += '<div style="display: flex; align-items: center; color: #666; font-size: 13px;">';
+            html += '<span style="display: inline-block; width: 4px; height: 4px; background: #FF9800; border-radius: 50%; margin-right: 8px;"></span>';
+            html += '<strong style="color: #555; margin-right: 6px;">Break:</strong>' + breakInfo;
+            html += '</div>';
+          }
+          html += '</div>';
+          html += '</label>';
+          html += '</div>';
+        }
+        
+        listDiv.innerHTML = html;
+        updateClockOutButton();
+      }
+
+      function selectAllEmployees() {
+        var checkboxes = document.querySelectorAll('.employee-checkbox');
+        checkboxes.forEach(function(cb) { cb.checked = true; });
+        updateClockOutButton();
+      }
+
+      function deselectAllEmployees() {
+        var checkboxes = document.querySelectorAll('.employee-checkbox');
+        checkboxes.forEach(function(cb) { cb.checked = false; });
+        updateClockOutButton();
+      }
+
+      function updateClockOutButton() {
+        var checkboxes = document.querySelectorAll('.employee-checkbox:checked');
+        document.getElementById('btnConfirmClockOut').disabled = checkboxes.length === 0;
+      }
+
+      function confirmManualClockOut() {
+        var checkboxes = document.querySelectorAll('.employee-checkbox:checked');
+        if (checkboxes.length === 0) {
+          showMessage('Please select at least one employee.', 'error');
+          return;
+        }
+        
+        var selectedEmployees = [];
+        checkboxes.forEach(function(cb) {
+          selectedEmployees.push(cb.value);
+        });
+        
+        var shiftLabel = selectedShiftType === 'AM' ? 'AM Shift (12:30 PM)' : 'PM Shift (5:30 PM)';
+        var confirmMsg = 'Clock out ' + selectedEmployees.length + ' employee(s) for ' + shiftLabel + '?';
+        
+        showCustomConfirm(
+          "Confirm Clock-Out",
+          confirmMsg,
+          function(confirmed) {
+            if (!confirmed) return;
+            
+            var statusText = document.getElementById('triggerStatusText');
+            statusText.innerText = "Processing clock-out...";
+            statusText.style.color = "#2E7D32";
+            statusText.style.display = 'block';
+            
+            postGoogleScript('manualClockOutSelected', {
+              employeeNames: selectedEmployees,
+              shiftType: selectedShiftType
+            })
+              .then(function(result) {
+                if (result.success) {
+                  statusText.innerText = "✓ Success! " + result.message;
+                  statusText.style.color = "#2E7D32";
+                  
+                  // Reload the list to show updated status
+                  setTimeout(function() {
+                    loadActiveEmployees();
+                    statusText.style.display = 'none';
+                  }, 2000);
+                } else {
+                  statusText.innerText = "✗ Error: " + result.message;
+                  statusText.style.color = "#D50000";
+                }
+              })
+              .catch(function(error) {
+                statusText.innerText = "✗ Error: " + error.message;
+                statusText.style.color = "#D50000";
+              });
+          }
+        );
+      }
+
+      function triggerAutoClockOutAM() {
+        var statusText = document.getElementById('triggerStatusText');
+        statusText.innerText = "Processing AM shift auto clock-out...";
+        statusText.style.color = "#2E7D32";
+        statusText.style.display = 'block';
+
+        callGoogleScript('autoClockOutAM')
+          .then(function(result) {
+            statusText.innerText = "✓ Success! " + result;
+            statusText.style.color = "#2E7D32";
+            setTimeout(function() {
+              statusText.style.display = 'none';
+            }, 3000);
+          })
+          .catch(function(error) {
+            statusText.innerText = "✗ Error: " + error.message;
+            statusText.style.color = "#D50000";
+          });
+      }
+
+      function triggerAutoClockOutPM() {
+        var statusText = document.getElementById('triggerStatusText');
+        statusText.innerText = "Processing PM shift auto clock-out...";
+        statusText.style.color = "#2E7D32";
+        statusText.style.display = 'block';
+
+        callGoogleScript('autoClockOutPM')
+          .then(function(result) {
+            statusText.innerText = "✓ Success! " + result;
+            statusText.style.color = "#2E7D32";
+            setTimeout(function() {
+              statusText.style.display = 'none';
+            }, 3000);
+          })
+          .catch(function(error) {
+            statusText.innerText = "✗ Error: " + error.message;
+            statusText.style.color = "#D50000";
+          });
+      }
+
+      function authenticateAdmin() {
+        var adminId = document.getElementById('adminIdInput').value.trim();
+        var adminCode = document.getElementById('adminCodeInput').value.trim();
+        var errorText = document.getElementById('adminErrorText');
+        
+        if (!adminId || !adminCode) {
+          errorText.innerText = "Please enter both Admin ID and Code.";
+          errorText.style.display = 'block';
+          return;
+        }
+        
+        errorText.style.display = 'none';
+        
+        callGoogleScript('validateAdmin', { adminId: adminId, adminCode: adminCode })
+          .then(function(result) {
+            if (result.success) {
+              authenticatedAdmin = { adminId: result.adminId, adminName: result.adminName };
+              closeAdminLogin();
+              
+              if (window.pendingAction === 'clockOutTrigger') {
+                window.pendingAction = null;
+                document.getElementById('triggerStatusText').style.display = 'none';
+                document.getElementById('clockOutTriggerModal').style.display = 'flex';
+              } else if (window.pendingAction === 'deployment') {
+                window.pendingAction = null;
+                toggleDeploymentPanel(true);
+              } else {
+                toggleOvertimePanel(true);
+              }
+            } else {
+              errorText.innerText = result.message;
+              errorText.style.display = 'block';
+            }
+          })
+          .catch(function(error) {
+            errorText.innerText = "Authentication error: " + error.message;
+            errorText.style.display = 'block';
+          });
+      }
+
+      // ==========================================================================
+      // OVERTIME PANEL FUNCTIONS
+      // ==========================================================================
+      
+      function toggleOvertimePanel(show) {
+        var panel = document.getElementById('otPanel');
+        if (show) {
+          panel.classList.add('active');
+          clearMessage();
+        } else {
+          panel.classList.remove('active');
+          resetOtFormState();
+          authenticatedAdmin = null;
+        }
+      }
+
+      function calculateOvertimeHours() {
+        var startVal = document.getElementById('otStart').value;
+        var endVal = document.getElementById('otEnd').value;
+        var displayBox = document.getElementById('computedHoursBox');
+        
+        if (!startVal || !endVal) {
+          displayBox.innerText = "Computed Duration: 0.00 Hours";
+          computedOTHours = 0;
+          validateOtFormRequirement();
+          return;
+        }
+
+        var startParts = startVal.split(':');
+        var endParts = endVal.split(':');
+        
+        var startMinutes = parseInt(startParts[0], 10) * 60 + parseInt(startParts[1], 10);
+        var endMinutes = parseInt(endParts[0], 10) * 60 + parseInt(endParts[1], 10);
+        
+        if (endMinutes < startMinutes) {
+          endMinutes += 24 * 60; 
+        }
+        
+        var difference = endMinutes - startMinutes;
+        computedOTHours = (difference / 60).toFixed(2);
+        displayBox.innerText = "Computed Duration: " + computedOTHours + " Hours";
+        
+        validateOtFormRequirement();
+      }
+
+      function validateOtFormRequirement() {
+        // Small delay to ensure datalist selection is captured
+        setTimeout(function() {
+          var otName = document.getElementById('otFullName').value.trim();
+          var otStart = document.getElementById('otStart').value;
+          var otEnd = document.getElementById('otEnd').value;
+          
+          document.getElementById('btnOtSubmit').disabled = !(otName && otStart && otEnd && computedOTHours > 0);
+        }, 50);
+      }
+
+      function resetOtFormState() {
+        document.getElementById('otFullName').value = "";
+        document.getElementById('otStart').value = "";
+        document.getElementById('otEnd').value = "";
+        document.getElementById('otRemarks').value = "";
+        document.getElementById('computedHoursBox').innerText = "Computed Duration: 0.00 Hours";
+        computedOTHours = 0;
+        document.getElementById('otMessage').style.display = 'none';
+        document.getElementById('btnOtSubmit').disabled = true;
+      }
+
+      function submitOvertimeLog() {
+        var otName = document.getElementById('otFullName').value.trim();
+        var otStart = document.getElementById('otStart').value;
+        var otEnd = document.getElementById('otEnd').value;
+        var otRemarks = document.getElementById('otRemarks').value.trim();
+        
+        if (!otName || !otStart || !otEnd) {
+          document.getElementById('otMessage').innerText = "Please fill in all required fields.";
+          document.getElementById('otMessage').className = "message error";
+          return;
+        }
+
+        showCustomConfirm(
+          "Submit Overtime Report",
+          "Submit overtime report for " + otName + "?",
+          function(confirmed) {
+            if (!confirmed) return;
+            
+            showLoading("Submitting Overtime Report...");
+
+            var payload = {
+              type: "OVERTIME",
+              fullName: otName,
+              timeStart: otStart,
+              timeEnd: otEnd,
+              remarks: otRemarks,
+              adminId: authenticatedAdmin ? authenticatedAdmin.adminId : "",
+              adminName: authenticatedAdmin ? authenticatedAdmin.adminName : ""
+            };
+
+            postGoogleScript('recordAttendance', payload)
+              .then(function(response) {
+                hideLoading();
+                showSuccessModal('Overtime Report Submitted', response.message || response);
+                resetOtFormState();
+              })
+              .catch(function(error) {
+                hideLoading();
+                document.getElementById('otMessage').innerText = error.message;
+                document.getElementById('otMessage').className = "message error";
+              });
+          }
+        );
+      }
+
+      // Monitor OT form inputs
+      document.getElementById('otFullName').addEventListener('input', validateOtFormRequirement);
+      document.getElementById('otFullName').addEventListener('change', validateOtFormRequirement);
+      document.getElementById('otFullName').addEventListener('keyup', validateOtFormRequirement);
+      document.getElementById('otStart').addEventListener('change', validateOtFormRequirement);
+      document.getElementById('otEnd').addEventListener('change', validateOtFormRequirement);
+
+      // ==========================================================================
+      // DEPLOYMENT PANEL FUNCTIONS
+      // ==========================================================================
+      
+      function toggleDeploymentPanel(show) {
+        var panel = document.getElementById('deployPanel');
+        if (show) {
+          panel.classList.add('active');
+          clearMessage();
+        } else {
+          panel.classList.remove('active');
+          resetDeployFormState();
+          authenticatedAdmin = null;
+        }
+      }
+
+      function validateDeployFormRequirement() {
+        // Small delay to ensure datalist selection is captured
+        setTimeout(function() {
+          var empName = document.getElementById('deployEmployeeName').value.trim();
+          var location = document.getElementById('deployLocation').value.trim();
+          var purpose = document.getElementById('deployPurpose').value.trim();
+          
+          document.getElementById('btnDeploySubmit').disabled = !(empName && location && purpose);
+        }, 50);
+      }
+
+      function resetDeployFormState() {
+        document.getElementById('deployEmployeeName').value = "";
+        document.getElementById('deployLocation').value = "";
+        document.getElementById('deployPurpose').value = "";
+        document.getElementById('deployReturnTime').value = "";
+        document.getElementById('deployRemarks').value = "";
+        document.getElementById('deployMessage').style.display = 'none';
+        document.getElementById('btnDeploySubmit').disabled = true;
+      }
+
+      function submitDeployment() {
+        var empName = document.getElementById('deployEmployeeName').value.trim();
+        var location = document.getElementById('deployLocation').value.trim();
+        var purpose = document.getElementById('deployPurpose').value.trim();
+        var returnTime = document.getElementById('deployReturnTime').value;
+        var remarks = document.getElementById('deployRemarks').value.trim();
+        
+        if (!empName || !location || !purpose) {
+          document.getElementById('deployMessage').innerText = "Please fill in all required fields.";
+          document.getElementById('deployMessage').className = "message error";
+          return;
+        }
+
+        showCustomConfirm(
+          "Confirm Deployment",
+          "Deploy " + empName + " to " + location + "?",
+          function(confirmed) {
+            if (!confirmed) return;
+            
+            showLoading("Recording Deployment...");
+
+            var payload = {
+              employeeName: empName,
+              deploymentLocation: location,
+              purpose: purpose,
+              expectedReturn: returnTime,
+              remarks: remarks,
+              adminId: authenticatedAdmin ? authenticatedAdmin.adminId : "",
+              adminName: authenticatedAdmin ? authenticatedAdmin.adminName : ""
+            };
+
+            postGoogleScript('recordDeployment', payload)
+              .then(function(response) {
+                hideLoading();
+                showSuccessModal('Deployment Recorded', response.message || response);
+                resetDeployFormState();
+              })
+              .catch(function(error) {
+                hideLoading();
+                document.getElementById('deployMessage').innerText = error.message;
+                document.getElementById('deployMessage').className = "message error";
+              });
+          }
+        );
+      }
+
+      // Monitor deployment form inputs
+      document.getElementById('deployEmployeeName').addEventListener('input', validateDeployFormRequirement);
+      document.getElementById('deployEmployeeName').addEventListener('change', validateDeployFormRequirement);
+      document.getElementById('deployEmployeeName').addEventListener('keyup', validateDeployFormRequirement);
+      document.getElementById('deployLocation').addEventListener('input', validateDeployFormRequirement);
+      document.getElementById('deployPurpose').addEventListener('input', validateDeployFormRequirement);
+    </script>
+  </body>
+</html>

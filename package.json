@@ -1,0 +1,20 @@
+{
+  "name": "collab-attendance-system",
+  "version": "2.0.0",
+  "description": "Full-featured attendance management system with Google Sheets backend",
+  "main": "index.html",
+  "scripts": {
+    "dev": "echo 'Open index.html in browser for local testing'",
+    "deploy": "vercel --prod"
+  },
+  "keywords": [
+    "attendance",
+    "tracking",
+    "google-sheets",
+    "vercel",
+    "employee-management"
+  ],
+  "author": "Your Organization",
+  "license": "UNLICENSED",
+  "private": true
+}
