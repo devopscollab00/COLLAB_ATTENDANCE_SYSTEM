@@ -1,0 +1,208 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>API Test - COLLAB Attendance</title>
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      max-width: 800px;
+      margin: 50px auto;
+      padding: 20px;
+    }
+    h1 {
+      color: #333;
+    }
+    .test-section {
+      background: #f5f5f5;
+      padding: 20px;
+      margin: 20px 0;
+      border-radius: 8px;
+    }
+    button {
+      background: #00E676;
+      color: white;
+      border: none;
+      padding: 10px 20px;
+      border-radius: 5px;
+      cursor: pointer;
+      font-size: 16px;
+      margin: 5px;
+    }
+    button:hover {
+      background: #00C853;
+    }
+    .result {
+      background: white;
+      padding: 15px;
+      margin-top: 10px;
+      border-radius: 5px;
+      border: 1px solid #ddd;
+      white-space: pre-wrap;
+      font-family: monospace;
+      max-height: 400px;
+      overflow-y: auto;
+    }
+    .success { border-left: 4px solid #00E676; }
+    .error { border-left: 4px solid #D50000; color: #D50000; }
+    input {
+      padding: 8px;
+      margin: 5px;
+      width: 200px;
+      border: 2px solid #ddd;
+      border-radius: 4px;
+    }
+  </style>
+</head>
+<body>
+  <h1>🧪 API Test - COLLAB Attendance System</h1>
+  
+  <div class="test-section">
+    <h2>Configuration</h2>
+    <label>Google Apps Script URL:</label><br>
+    <input type="text" id="apiUrl" value="https://script.google.com/macros/s/AKfycbzzcWQCdHFSN9Ik8KCe4kDGrusvyAyc6t6jYLff2bNeUxdT6kZ3lSBiYsMeqv3xzfpj/exec" style="width: 90%;">
+  </div>
+
+  <div class="test-section">
+    <h2>1. Test getInitialData (Locations & Employees)</h2>
+    <button onclick="testGetInitialData()">Run Test</button>
+    <div id="result1" class="result"></div>
+  </div>
+
+  <div class="test-section">
+    <h2>2. Test getEmployeeByID</h2>
+    <input type="text" id="empId" placeholder="Enter Employee ID" value="DEVOPS">
+    <button onclick="testGetEmployeeByID()">Run Test</button>
+    <div id="result2" class="result"></div>
+  </div>
+
+  <div class="test-section">
+    <h2>3. Test validateAdmin</h2>
+    <input type="text" id="adminId" placeholder="Admin ID" value="DEVOPS">
+    <input type="password" id="adminCode" placeholder="Admin Code">
+    <button onclick="testValidateAdmin()">Run Test</button>
+    <div id="result3" class="result"></div>
+  </div>
+
+  <div class="test-section">
+    <h2>4. Test Direct URL (opens in new tab)</h2>
+    <button onclick="testDirectURL()">Open API URL</button>
+    <p style="font-size: 12px; color: #666;">This will open the API URL in a new tab. You should see JSON response.</p>
+  </div>
+
+  <script>
+    function getApiUrl() {
+      return document.getElementById('apiUrl').value.trim();
+    }
+
+    function displayResult(elementId, data, isError = false) {
+      const resultDiv = document.getElementById(elementId);
+      resultDiv.className = 'result ' + (isError ? 'error' : 'success');
+      resultDiv.textContent = JSON.stringify(data, null, 2);
+    }
+
+    async function testGetInitialData() {
+      const resultDiv = document.getElementById('result1');
+      resultDiv.textContent = 'Loading...';
+      
+      try {
+        const url = getApiUrl() + '?action=getInitialData';
+        console.log('Calling:', url);
+        
+        const response = await fetch(url);
+        console.log('Status:', response.status);
+        console.log('Content-Type:', response.headers.get('content-type'));
+        
+        const text = await response.text();
+        console.log('Raw response:', text);
+        
+        try {
+          const data = JSON.parse(text);
+          displayResult('result1', data, !data.success);
+          
+          if (data.success) {
+            alert('✅ SUCCESS!\n\nLocations: ' + data.locations.length + '\nEmployees: ' + data.employees.length);
+          } else {
+            alert('❌ FAILED: ' + data.message);
+          }
+        } catch (parseError) {
+          displayResult('result1', {
+            error: 'Failed to parse JSON',
+            rawResponse: text.substring(0, 500)
+          }, true);
+          alert('❌ ERROR: Response is not valid JSON. Check console.');
+        }
+      } catch (error) {
+        displayResult('result1', { error: error.message }, true);
+        alert('❌ ERROR: ' + error.message);
+      }
+    }
+
+    async function testGetEmployeeByID() {
+      const resultDiv = document.getElementById('result2');
+      resultDiv.textContent = 'Loading...';
+      
+      const empId = document.getElementById('empId').value.trim();
+      if (!empId) {
+        alert('Please enter an Employee ID');
+        return;
+      }
+      
+      try {
+        const url = getApiUrl() + '?action=getEmployeeByID&employeeId=' + encodeURIComponent(empId);
+        console.log('Calling:', url);
+        
+        const response = await fetch(url);
+        const data = await response.json();
+        
+        displayResult('result2', data, !data.success);
+        
+        if (data.success) {
+          alert('✅ FOUND!\n\nEmployee: ' + data.employeeName);
+        } else {
+          alert('❌ NOT FOUND: ' + data.message);
+        }
+      } catch (error) {
+        displayResult('result2', { error: error.message }, true);
+        alert('❌ ERROR: ' + error.message);
+      }
+    }
+
+    async function testValidateAdmin() {
+      const resultDiv = document.getElementById('result3');
+      resultDiv.textContent = 'Loading...';
+      
+      const adminId = document.getElementById('adminId').value.trim();
+      const adminCode = document.getElementById('adminCode').value.trim();
+      
+      if (!adminId || !adminCode) {
+        alert('Please enter both Admin ID and Code');
+        return;
+      }
+      
+      try {
+        const url = getApiUrl() + '?action=validateAdmin&adminId=' + encodeURIComponent(adminId) + '&adminCode=' + encodeURIComponent(adminCode);
+        console.log('Calling:', url);
+        
+        const response = await fetch(url);
+        const data = await response.json();
+        
+        displayResult('result3', data, !data.success);
+        
+        if (data.success) {
+          alert('✅ VALID ADMIN!\n\nName: ' + data.adminName);
+        } else {
+          alert('❌ INVALID: ' + data.message);
+        }
+      } catch (error) {
+        displayResult('result3', { error: error.message }, true);
+        alert('❌ ERROR: ' + error.message);
+      }
+    }
+
+    function testDirectURL() {
+      const url = getApiUrl() + '?action=getInitialData';
+      window.open(url, '_blank');
+    }
+  </script>
+</body>
+</html>

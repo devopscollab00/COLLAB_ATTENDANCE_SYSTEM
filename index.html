@@ -375,19 +375,35 @@
             }
           });
           
+          console.log("Calling API:", url.toString());
+          
           const response = await fetch(url.toString(), {
             method: 'GET',
             redirect: 'follow'
           });
           
+          console.log("Response status:", response.status);
+          console.log("Response headers:", response.headers.get('content-type'));
+          
           if (!response.ok) {
             throw new Error(`HTTP error! status: ${response.status}`);
           }
           
+          // Check if response is JSON
+          const contentType = response.headers.get('content-type');
+          if (!contentType || !contentType.includes('application/json')) {
+            const text = await response.text();
+            console.error("Response is not JSON:", text.substring(0, 500));
+            throw new Error("Server returned non-JSON response. Check if Apps Script is deployed correctly.");
+          }
+          
           const data = await response.json();
+          console.log("Parsed JSON data:", data);
           return data;
         } catch (error) {
           console.error('API call error:', error);
+          console.error('Action was:', action);
+          console.error('Params were:', params);
           throw error;
         }
       }
@@ -489,18 +505,27 @@
        */
       async function loadInitialDataSilent() {
         try {
+          console.log("Loading initial data...");
+          console.log("API URL:", GOOGLE_SCRIPT_URL);
+          
           // Fetch employees and locations
           const data = await callGoogleScript('getInitialData');
           
-          if (data.success) {
+          console.log("Received data:", data);
+          
+          if (data && data.success) {
             // Populate employee datalist
             const employeeList = document.getElementById('employeeList');
             employeeList.innerHTML = '';
-            data.employees.forEach(emp => {
-              const option = document.createElement('option');
-              option.value = emp;
-              employeeList.appendChild(option);
-            });
+            
+            if (data.employees && Array.isArray(data.employees)) {
+              console.log("Loading", data.employees.length, "employees");
+              data.employees.forEach(emp => {
+                const option = document.createElement('option');
+                option.value = emp;
+                employeeList.appendChild(option);
+              });
+            }
             
             // Populate location dropdown (ONLY LOCATION NAMES, NO ID)
             const locationSelect = document.getElementById('locationSelect');
@@ -512,19 +537,50 @@
             defaultOption.textContent = '-- Select Location --';
             locationSelect.appendChild(defaultOption);
             
-            data.locations.forEach(loc => {
-              const option = document.createElement('option');
-              option.value = loc; // Location name only
-              option.textContent = loc; // Display location name only
-              locationSelect.appendChild(option);
-            });
+            if (data.locations && Array.isArray(data.locations)) {
+              console.log("Loading", data.locations.length, "locations");
+              data.locations.forEach(loc => {
+                const option = document.createElement('option');
+                option.value = loc; // Location name only
+                option.textContent = loc; // Display location name only
+                locationSelect.appendChild(option);
+              });
+              console.log("Locations populated successfully");
+            } else {
+              console.error("No locations array in response");
+            }
           } else {
             // Silently fail - don't show error on page load
-            console.error("Failed to load initial data:", data.message);
+            console.error("Failed to load initial data:", data ? data.message : "No data received");
+            
+            // Add fallback location
+            const locationSelect = document.getElementById('locationSelect');
+            const defaultOption = document.createElement('option');
+            defaultOption.value = '';
+            defaultOption.textContent = '-- Select Location --';
+            locationSelect.appendChild(defaultOption);
+            
+            const fallbackOption = document.createElement('option');
+            fallbackOption.value = 'Main Office';
+            fallbackOption.textContent = 'Main Office';
+            locationSelect.appendChild(fallbackOption);
           }
         } catch (error) {
           // Silently fail - don't show error on page load
           console.error("Failed to connect to server:", error);
+          console.error("Error details:", error.message);
+          
+          // Add fallback location
+          const locationSelect = document.getElementById('locationSelect');
+          const defaultOption = document.createElement('option');
+          defaultOption.value = '';
+          defaultOption.textContent = '-- Select Location --';
+          locationSelect.appendChild(defaultOption);
+          
+          const fallbackOption = document.createElement('option');
+          fallbackOption.value = 'Main Office';
+          fallbackOption.textContent = 'Main Office';
+          locationSelect.appendChild(fallbackOption);
         }
       }
       
