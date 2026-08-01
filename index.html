@@ -1,9 +1,7 @@
 <!DOCTYPE html>
-<html lang="en">
+<html>
   <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>COLLAB Attendance System</title>
+    <base target="_top">
     <style>
       * { box-sizing: border-box; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; }
       body { background-color: #f4f6f9; margin: 0; padding: 20px; display: flex; justify-content: center; align-items: center; min-height: 100vh; position: relative; overflow-x: hidden; }
@@ -121,11 +119,15 @@
   <body>
 
     <datalist id="employeeList">
-      <!-- Populated dynamically from Google Apps Script -->
+      <? for (var i = 0; i < employees.length; i++) { ?>
+        <option value="<?= employees[i] ?>"></option>
+      <? } ?>
     </datalist>
 
     <datalist id="locationList">
-      <!-- Populated dynamically from Google Apps Script -->
+      <? for (var i = 0; i < locations.length; i++) { ?>
+        <option value="<?= locations[i] ?>"></option>
+      <? } ?>
     </datalist>
 
     <div class="container" id="mainContainer">
@@ -139,7 +141,9 @@
       <div class="form-group">
         <label>Select Location:</label>
         <select name="locationSelect" id="locationSelect">
-          <!-- Populated dynamically from Google Apps Script -->
+          <? for (var i = 0; i < locations.length; i++) { ?>
+            <option value="<?= locations[i] ?>"><?= locations[i] ?></option>
+          <? } ?>
         </select>
       </div>
 
@@ -347,423 +351,6 @@
     </div>
 
     <script>
-      // ==========================================================================
-      // CONFIGURATION - Update this URL with your deployed Google Apps Script URL
-      // ==========================================================================
-      const GOOGLE_SCRIPT_URL = "https://script.google.com/macros/s/AKfycbzxipbdsZtOpOX1eO9S4e-8WvbVecxsAARXKbrj8noMOn2peRuwkhfcuy0EfmeL-iv5/exec";
-      // ==========================================================================
-      // API HELPER FUNCTIONS
-      // ==========================================================================
-      
-      /**
-       * Make API call to Google Apps Script with retry logic
-       * @param {string} action - The function name to call
-       * @param {object} params - Parameters to pass to the function
-       * @param {number} retryCount - Current retry attempt (default 0)
-       * @returns {Promise} Promise that resolves with the API response
-       */
-      async function callGoogleScript(action, params = {}, retryCount = 0) {
-        const MAX_RETRIES = 3;
-        const TIMEOUT_MS = 20000; // 20 seconds for GET requests
-        const RETRY_DELAYS = [1000, 2000, 4000]; // Exponential backoff
-        
-        var startTime = new Date().getTime();
-        
-        try {
-          const url = new URL(GOOGLE_SCRIPT_URL);
-          url.searchParams.append('action', action);
-          
-          // Add params as query parameters
-          Object.keys(params).forEach(key => {
-            const value = params[key];
-            if (value !== null && value !== undefined) {
-              url.searchParams.append(key, typeof value === 'object' ? JSON.stringify(value) : value);
-            }
-          });
-          
-          console.log("📡 API GET Request (Attempt " + (retryCount + 1) + "/" + (MAX_RETRIES + 1) + "):", action, params);
-          console.log("🔗 URL:", url.toString());
-          
-          // Check internet connection first
-          if (!isOnline()) {
-            throw new Error("No internet connection. Please check your network and try again.");
-          }
-          
-          // Create abort controller for timeout
-          const controller = new AbortController();
-          const timeoutId = setTimeout(() => controller.abort(), TIMEOUT_MS);
-          
-          const response = await fetch(url.toString(), {
-            method: 'GET',
-            redirect: 'follow',
-            signal: controller.signal
-          });
-          
-          clearTimeout(timeoutId);
-          
-          var endTime = new Date().getTime();
-          var duration = endTime - startTime;
-          console.log("⏱️ Response received in " + duration + "ms");
-          console.log("📊 Response status:", response.status);
-          console.log("📋 Response headers:", response.headers.get('content-type'));
-          
-          // Handle HTTP errors
-          if (!response.ok) {
-            // 5xx errors are retryable
-            if (response.status >= 500 && response.status < 600 && retryCount < MAX_RETRIES) {
-              console.warn("⚠️ Server error (status " + response.status + "), retrying...");
-              await new Promise(resolve => setTimeout(resolve, RETRY_DELAYS[retryCount]));
-              return callGoogleScript(action, params, retryCount + 1);
-            }
-            
-            throw new Error(`HTTP error! status: ${response.status}`);
-          }
-          
-          // Check if response is JSON
-          const contentType = response.headers.get('content-type');
-          if (!contentType || !contentType.includes('application/json')) {
-            const text = await response.text();
-            console.error("❌ Response is not JSON:", text.substring(0, 500));
-            throw new Error("Server returned non-JSON response. Check if Apps Script is deployed correctly.");
-          }
-          
-          const data = await response.json();
-          console.log("✅ Parsed JSON data:", data);
-          
-          return data;
-          
-        } catch (error) {
-          var endTime = new Date().getTime();
-          var duration = endTime - startTime;
-          console.error('❌ API call error after ' + duration + 'ms:', error);
-          console.error('Action was:', action);
-          console.error('Params were:', params);
-          
-          // Handle timeout
-          if (error.name === 'AbortError') {
-            if (retryCount < MAX_RETRIES) {
-              console.warn("⚠️ Request timeout, retrying...");
-              await new Promise(resolve => setTimeout(resolve, RETRY_DELAYS[retryCount]));
-              return callGoogleScript(action, params, retryCount + 1);
-            } else {
-              throw new Error("Request timeout after " + (duration / 1000) + " seconds. Please try again.");
-            }
-          }
-          
-          // Handle network errors with retry
-          if (error.message.includes('Failed to fetch') || error.name === 'TypeError') {
-            if (retryCount < MAX_RETRIES) {
-              console.warn("⚠️ Network error, retrying in " + RETRY_DELAYS[retryCount] + "ms...");
-              await new Promise(resolve => setTimeout(resolve, RETRY_DELAYS[retryCount]));
-              return callGoogleScript(action, params, retryCount + 1);
-            } else {
-              throw new Error("Unable to connect to the server after " + (retryCount + 1) + " attempts. Please verify your internet connection.");
-            }
-          }
-          
-          throw error;
-        }
-      }
-      
-      /**
-       * Check if user has internet connection
-       */
-      function isOnline() {
-        return navigator.onLine;
-      }
-      
-      /**
-       * Make POST API call to Google Apps Script (for large payloads) with retry logic
-       * WORKAROUND: Actually uses GET with URL parameters due to CORS issues
-       * @param {string} action - The function name to call
-       * @param {object} payload - Data to send
-       * @param {number} retryCount - Current retry attempt (default 0)
-       * @returns {Promise} Promise that resolves with the API response
-       */
-      async function postGoogleScript(action, payload = {}, retryCount = 0) {
-        const MAX_RETRIES = 3;
-        const TIMEOUT_MS = 30000; // 30 seconds
-        const RETRY_DELAYS = [1000, 2000, 4000]; // Exponential backoff
-        
-        var startTime = new Date().getTime();
-        
-        try {
-          console.log("📡 API Request via GET (POST workaround) (Attempt " + (retryCount + 1) + "/" + (MAX_RETRIES + 1) + "):", action);
-          console.log("📦 Payload:", payload);
-          console.log("🔗 Target URL:", GOOGLE_SCRIPT_URL);
-          
-          // Check internet connection first
-          if (!isOnline()) {
-            throw new Error("No internet connection. Please check your network and try again.");
-          }
-          
-          // Build URL with parameters (GET workaround)
-          const url = new URL(GOOGLE_SCRIPT_URL);
-          url.searchParams.append('action', action);
-          
-          // Add all payload fields as URL parameters
-          Object.keys(payload).forEach(key => {
-            if (payload[key] !== null && payload[key] !== undefined) {
-              url.searchParams.append(key, payload[key]);
-            }
-          });
-          
-          console.log("📤 Request URL length:", url.toString().length, "characters");
-          console.log("⏳ Sending GET request with " + TIMEOUT_MS + "ms timeout...");
-          
-          // Create abort controller for timeout
-          const controller = new AbortController();
-          const timeoutId = setTimeout(() => controller.abort(), TIMEOUT_MS);
-          
-          // Make GET request (not POST)
-          const response = await fetch(url.toString(), {
-            method: 'GET',
-            redirect: 'follow',
-            signal: controller.signal
-          });
-          
-          clearTimeout(timeoutId);
-          
-          var endTime = new Date().getTime();
-          var duration = endTime - startTime;
-          console.log("⏱️ Response received in " + duration + "ms");
-          console.log("📊 Response status:", response.status);
-          console.log("📋 Response headers:", {
-            contentType: response.headers.get('content-type'),
-            contentLength: response.headers.get('content-length')
-          });
-          
-          // Handle HTTP errors
-          if (!response.ok) {
-            const statusText = response.statusText || "Unknown Error";
-            
-            // 5xx errors are retryable
-            if (response.status >= 500 && response.status < 600 && retryCount < MAX_RETRIES) {
-              console.warn("⚠️ Server error (status " + response.status + "), retrying...");
-              await new Promise(resolve => setTimeout(resolve, RETRY_DELAYS[retryCount]));
-              return postGoogleScript(action, payload, retryCount + 1);
-            }
-            
-            // 4xx errors are not retryable
-            if (response.status >= 400 && response.status < 500) {
-              throw new Error("Request failed: " + statusText + " (Status " + response.status + ")");
-            }
-            
-            throw new Error("HTTP error! status: " + response.status + " - " + statusText);
-          }
-          
-          // Check content type
-          const contentType = response.headers.get('content-type');
-          if (!contentType || !contentType.includes('application/json')) {
-            console.error("❌ Response is not JSON, content-type:", contentType);
-            const text = await response.text();
-            console.error("❌ Response text (first 500 chars):", text.substring(0, 500));
-            throw new Error("Server returned non-JSON response. Please verify the Google Apps Script is deployed correctly as a Web App.");
-          }
-          
-          // Parse JSON response
-          let data;
-          try {
-            data = await response.json();
-            console.log("✅ Response data:", data);
-          } catch (parseError) {
-            console.error("❌ Failed to parse JSON:", parseError.message);
-            throw new Error("Invalid JSON response from server. Please verify the Google Apps Script configuration.");
-          }
-          
-          // Log performance metrics
-          console.log("📊 Performance:", {
-            duration: duration + "ms",
-            payloadSize: url.toString().length + " chars",
-            retries: retryCount,
-            method: "GET (POST workaround)"
-          });
-          
-          return data;
-          
-        } catch (error) {
-          var endTime = new Date().getTime();
-          var duration = endTime - startTime;
-          console.error('❌ API call error after ' + duration + 'ms:', error);
-          console.error('Error type:', error.name);
-          console.error('Error message:', error.message);
-          
-          // Handle timeout
-          if (error.name === 'AbortError') {
-            if (retryCount < MAX_RETRIES) {
-              console.warn("⚠️ Request timeout, retrying...");
-              await new Promise(resolve => setTimeout(resolve, RETRY_DELAYS[retryCount]));
-              return postGoogleScript(action, payload, retryCount + 1);
-            } else {
-              throw new Error("Request timeout after " + (duration / 1000) + " seconds. The server is not responding. Please try again later.");
-            }
-          }
-          
-          // Handle network errors
-          if (error.message.includes('Failed to fetch') || error.name === 'TypeError') {
-            // Check if we should retry
-            if (retryCount < MAX_RETRIES) {
-              console.warn("⚠️ Network error, retrying in " + RETRY_DELAYS[retryCount] + "ms...");
-              await new Promise(resolve => setTimeout(resolve, RETRY_DELAYS[retryCount]));
-              return postGoogleScript(action, payload, retryCount + 1);
-            } else {
-              throw new Error("Unable to reach the attendance server after " + (retryCount + 1) + " attempts. Please check:\n1. Your internet connection\n2. Google Apps Script deployment status\n3. The GOOGLE_SCRIPT_URL in the code");
-            }
-          }
-          
-          // Re-throw other errors
-          throw error;
-        }
-      }
-      
-      // ==========================================================================
-      // INITIALIZATION
-      // ==========================================================================
-      
-      /**
-       * Load initial data (employees and locations) from Google Apps Script
-       * Used when explicitly needed (e.g., refresh button)
-       */
-      async function loadInitialData() {
-        try {
-          showLoading("Loading data...");
-          
-          // Fetch employees and locations
-          const data = await callGoogleScript('getInitialData');
-          
-          if (data.success) {
-            // Populate employee datalist
-            const employeeList = document.getElementById('employeeList');
-            employeeList.innerHTML = '';
-            data.employees.forEach(emp => {
-              const option = document.createElement('option');
-              option.value = emp;
-              employeeList.appendChild(option);
-            });
-            
-            // Populate location dropdown (ONLY LOCATION NAMES, NO ID)
-            const locationSelect = document.getElementById('locationSelect');
-            locationSelect.innerHTML = '';
-            
-            // Add default option
-            const defaultOption = document.createElement('option');
-            defaultOption.value = '';
-            defaultOption.textContent = '-- Select Location --';
-            locationSelect.appendChild(defaultOption);
-            
-            data.locations.forEach(loc => {
-              const option = document.createElement('option');
-              option.value = loc; // Location name only
-              option.textContent = loc; // Display location name only
-              locationSelect.appendChild(option);
-            });
-            
-            hideLoading();
-          } else {
-            hideLoading();
-            showMessage("Error loading data: " + (data.message || "Unknown error"), "error");
-          }
-        } catch (error) {
-          hideLoading();
-          showMessage("Failed to connect to server: " + error.message, "error");
-        }
-      }
-      
-      // Load data when page loads (no loading screen)
-      window.addEventListener('DOMContentLoaded', function() {
-        loadInitialDataSilent();
-        updateLiveClock();
-      });
-      
-      /**
-       * Load initial data without showing loading overlay
-       * Silently populate dropdowns in background
-       */
-      async function loadInitialDataSilent() {
-        try {
-          console.log("Loading initial data...");
-          console.log("API URL:", GOOGLE_SCRIPT_URL);
-          
-          // Fetch employees and locations
-          const data = await callGoogleScript('getInitialData');
-          
-          console.log("Received data:", data);
-          
-          if (data && data.success) {
-            // Populate employee datalist
-            const employeeList = document.getElementById('employeeList');
-            employeeList.innerHTML = '';
-            
-            if (data.employees && Array.isArray(data.employees)) {
-              console.log("Loading", data.employees.length, "employees");
-              data.employees.forEach(emp => {
-                const option = document.createElement('option');
-                option.value = emp;
-                employeeList.appendChild(option);
-              });
-            }
-            
-            // Populate location dropdown (ONLY LOCATION NAMES, NO ID)
-            const locationSelect = document.getElementById('locationSelect');
-            locationSelect.innerHTML = '';
-            
-            // Add default option
-            const defaultOption = document.createElement('option');
-            defaultOption.value = '';
-            defaultOption.textContent = '-- Select Location --';
-            locationSelect.appendChild(defaultOption);
-            
-            if (data.locations && Array.isArray(data.locations)) {
-              console.log("Loading", data.locations.length, "locations");
-              data.locations.forEach(loc => {
-                const option = document.createElement('option');
-                option.value = loc; // Location name only
-                option.textContent = loc; // Display location name only
-                locationSelect.appendChild(option);
-              });
-              console.log("Locations populated successfully");
-            } else {
-              console.error("No locations array in response");
-            }
-          } else {
-            // Silently fail - don't show error on page load
-            console.error("Failed to load initial data:", data ? data.message : "No data received");
-            
-            // Add fallback location
-            const locationSelect = document.getElementById('locationSelect');
-            const defaultOption = document.createElement('option');
-            defaultOption.value = '';
-            defaultOption.textContent = '-- Select Location --';
-            locationSelect.appendChild(defaultOption);
-            
-            const fallbackOption = document.createElement('option');
-            fallbackOption.value = 'Main Office';
-            fallbackOption.textContent = 'Main Office';
-            locationSelect.appendChild(fallbackOption);
-          }
-        } catch (error) {
-          // Silently fail - don't show error on page load
-          console.error("Failed to connect to server:", error);
-          console.error("Error details:", error.message);
-          
-          // Add fallback location
-          const locationSelect = document.getElementById('locationSelect');
-          const defaultOption = document.createElement('option');
-          defaultOption.value = '';
-          defaultOption.textContent = '-- Select Location --';
-          locationSelect.appendChild(defaultOption);
-          
-          const fallbackOption = document.createElement('option');
-          fallbackOption.value = 'Main Office';
-          fallbackOption.textContent = 'Main Office';
-          locationSelect.appendChild(fallbackOption);
-        }
-      }
-      
-      // ==========================================================================
-      // GLOBAL VARIABLES
-      // ==========================================================================
-      
       var photoPreview = document.getElementById('photo-preview');
       var cameraStatus = document.getElementById('cameraStatus');
       var loader = document.getElementById('loader');
@@ -884,57 +471,24 @@
       }
 
       function handleMobilePhoto(input) {
-        console.log("📸 Processing captured photo...");
         var file = input.files[0];
-        if (!file) {
-          console.warn("⚠️ No file selected");
-          return;
-        }
+        if (!file) return;
 
-        console.log("📸 File size:", file.size, "bytes, type:", file.type);
         document.getElementById('cameraStatus').innerText = "Processing image...";
         document.getElementById('cameraStatus').style.display = 'block';
         
-        // OPTIMIZED: Capture location in parallel with photo processing
-        var locationCaptured = false;
-        console.log("📍 Starting parallel location capture");
+        // Capture location and timestamp, then process image
         captureLocationAndTimestamp(function() {
-          console.log("✅ Location captured");
-          locationCaptured = true;
-        });
-        
-        // Process photo
-        document.getElementById('cameraStatus').innerText = "Preparing photo...";
-        
-        var reader = new FileReader();
-        reader.onload = function(e) {
-          console.log("✅ File read complete");
-          var img = new Image();
+          document.getElementById('cameraStatus').innerText = "Preparing photo...";
           
-          // Add error handler for iOS
-          img.onerror = function() {
-            console.error("❌ Image loading failed, using fallback");
-            // Fallback: use the raw image without canvas processing
-            base64Photo = e.target.result;
-            photoPreview.src = base64Photo;
-            photoPreview.style.display = 'block';
-            cameraStatus.style.display = 'none';
-            btnCapture.innerText = "🔄 RE-TAKE PHOTO";
-            btnCapture.style.backgroundColor = "#e0a800";
-            updateButtonStates();
-            clearMessage();
-            console.log("✅ Photo ready (fallback mode)");
-          };
-          
-          img.onload = function() {
-            try {
-              console.log("✅ Image loaded, dimensions:", img.width, "x", img.height);
-              document.getElementById('cameraStatus').innerText = "Adding overlay...";
-              applyOverlayToImage(img);
-              console.log("✅ Photo processing complete");
-            } catch (error) {
-              console.error("❌ Canvas processing failed:", error);
-              // Fallback: use the raw image without overlay
+          var reader = new FileReader();
+          reader.onload = function(e) {
+            var img = new Image();
+            
+            // Add error handler for iOS
+            img.onerror = function() {
+              console.error("Image loading failed, attempting fallback...");
+              // Fallback: use the raw image without canvas processing
               base64Photo = e.target.result;
               photoPreview.src = base64Photo;
               photoPreview.style.display = 'block';
@@ -943,103 +497,117 @@
               btnCapture.style.backgroundColor = "#e0a800";
               updateButtonStates();
               clearMessage();
-              console.log("✅ Photo ready (fallback mode)");
-            }
+            };
+            
+            img.onload = function() {
+              try {
+                document.getElementById('cameraStatus').innerText = "Adding location overlay...";
+                applyOverlayToImage(img);
+              } catch (error) {
+                console.error("Canvas processing failed:", error);
+                // Fallback: use the raw image without overlay
+                base64Photo = e.target.result;
+                photoPreview.src = base64Photo;
+                photoPreview.style.display = 'block';
+                cameraStatus.style.display = 'none';
+                btnCapture.innerText = "🔄 RE-TAKE PHOTO";
+                btnCapture.style.backgroundColor = "#e0a800";
+                updateButtonStates();
+                clearMessage();
+              }
+            };
+            
+            // Set crossOrigin for better iOS compatibility
+            img.crossOrigin = "anonymous";
+            img.src = e.target.result;
           };
           
-          // Set crossOrigin for better iOS compatibility
-          img.crossOrigin = "anonymous";
-          img.src = e.target.result;
-        };
-        
-        reader.onerror = function() {
-          console.error("❌ FileReader failed");
-          document.getElementById('cameraStatus').innerText = "Error reading image. Please try again.";
-          document.getElementById('cameraStatus').style.color = "#D50000";
-          setTimeout(function() {
-            document.getElementById('cameraStatus').innerText = "No Photo Captured Yet";
-            document.getElementById('cameraStatus').style.color = "white";
-          }, 3000);
-        };
-        
-        reader.readAsDataURL(file);
+          reader.onerror = function() {
+            console.error("FileReader failed");
+            document.getElementById('cameraStatus').innerText = "Error reading image. Please try again.";
+            document.getElementById('cameraStatus').style.color = "#D50000";
+            setTimeout(function() {
+              document.getElementById('cameraStatus').innerText = "No Photo Captured Yet";
+              document.getElementById('cameraStatus').style.color = "white";
+            }, 3000);
+          };
+          
+          reader.readAsDataURL(file);
+        });
       }
       
       function captureLocationAndTimestamp(callback) {
-        console.log("📍 Starting location capture...");
         capturedTimestamp = new Date();
         
-        // Ensure callback is called even if location/geocoding hangs
+        // Ensure callback is called even if location/geocoding hangs (critical for iOS)
         var callbackCalled = false;
         var safeCallback = function() {
           if (!callbackCalled) {
             callbackCalled = true;
-            console.log("📍 Location capture complete, executing callback");
             callback();
           }
         };
         
-        // OPTIMIZED: Reduced timeout to 3 seconds for better UX
+        // Failsafe timeout - proceed after 8 seconds regardless
         var failsafeTimer = setTimeout(function() {
-          console.warn("⚠️ Location timeout (3s) - proceeding without full location");
+          console.log("Location/geocoding timeout - proceeding without full location data");
           if (!callbackCalled) {
             capturedLocation = capturedLocation || { available: false };
             capturedAddress = capturedAddress || "Location timeout";
             safeCallback();
           }
-        }, 3000); // Reduced from 8000ms to 3000ms
+        }, 8000);
         
         if (navigator.geolocation) {
-          console.log("📍 Requesting GPS position...");
           navigator.geolocation.getCurrentPosition(
             function(position) {
-              console.log("✅ GPS position obtained:", position.coords.latitude, position.coords.longitude);
               capturedLocation = {
                 latitude: position.coords.latitude.toFixed(6),
                 longitude: position.coords.longitude.toFixed(6),
                 available: true
               };
               
-              // OPTIMIZED: Proceed immediately with coordinates, geocode in background
-              clearTimeout(failsafeTimer);
-              capturedAddress = "Lat: " + capturedLocation.latitude + ", Lon: " + capturedLocation.longitude;
+              // Reverse geocode to get human-readable address with timeout
+              var geocodeTimeout = setTimeout(function() {
+                if (!callbackCalled) {
+                  capturedAddress = "Lat: " + capturedLocation.latitude + ", Lon: " + capturedLocation.longitude;
+                  clearTimeout(failsafeTimer);
+                  safeCallback();
+                }
+              }, 5000);
               
-              // Attempt geocoding but don't wait for it
-              reverseGeocodeNonBlocking(capturedLocation.latitude, capturedLocation.longitude);
-              
-              safeCallback();
+              reverseGeocode(capturedLocation.latitude, capturedLocation.longitude, function(address) {
+                clearTimeout(geocodeTimeout);
+                clearTimeout(failsafeTimer);
+                capturedAddress = address || "Address not found";
+                safeCallback();
+              });
             },
             function(error) {
-              console.error("❌ Geolocation error:", error.message);
+              console.log("Geolocation error: " + error.message);
               clearTimeout(failsafeTimer);
               capturedLocation = { available: false };
-              capturedAddress = "Location unavailable: " + error.message;
+              capturedAddress = "Location unavailable";
               safeCallback();
             },
-            { 
-              enableHighAccuracy: false, // OPTIMIZED: Use false for faster response
-              timeout: 2000,              // OPTIMIZED: Reduced from 6000ms to 2000ms
-              maximumAge: 30000           // OPTIMIZED: Allow cached location up to 30s old
-            }
+            { enableHighAccuracy: true, timeout: 6000, maximumAge: 0 }
           );
         } else {
-          console.warn("⚠️ Geolocation not supported");
           clearTimeout(failsafeTimer);
           capturedLocation = { available: false };
-          capturedAddress = "Location not supported";
+          capturedAddress = "Location unavailable";
           safeCallback();
         }
       }
       
-      // OPTIMIZED: Non-blocking geocoding - updates address after callback
-      function reverseGeocodeNonBlocking(lat, lon) {
-        console.log("🗺️ Starting background geocoding...");
+      function reverseGeocode(lat, lon, callback) {
         var url = "https://nominatim.openstreetmap.org/reverse?format=json&lat=" + lat + "&lon=" + lon + "&zoom=18&addressdetails=1";
         
+        // Use AbortController for timeout support (iOS compatible)
         var controller = new AbortController();
         var timeoutId = setTimeout(function() {
           controller.abort();
-        }, 2000); // Reduced from 4000ms to 2000ms
+        }, 4000); // 4 second timeout for geocoding
         
         fetch(url, {
           headers: { 'User-Agent': 'CollabAttendanceSystem/1.0' },
@@ -1051,8 +619,7 @@
         })
         .then(function(data) {
           if (data && data.display_name) {
-            console.log("✅ Geocoding complete:", data.display_name);
-            capturedAddress = data.display_name;
+            callback(data.display_name);
           } else if (data && data.address) {
             var addr = data.address;
             var addressParts = [];
@@ -1060,22 +627,16 @@
             if (addr.suburb || addr.neighbourhood) addressParts.push(addr.suburb || addr.neighbourhood);
             if (addr.city || addr.town || addr.village) addressParts.push(addr.city || addr.town || addr.village);
             if (addr.state) addressParts.push(addr.state);
-            var address = addressParts.join(", ");
-            console.log("✅ Geocoding complete:", address);
-            capturedAddress = address;
+            callback(addressParts.join(", "));
+          } else {
+            callback("Address not found");
           }
         })
         .catch(function(error) {
           clearTimeout(timeoutId);
-          console.warn("⚠️ Geocoding failed:", error.message);
-          // Keep coordinate-based address
+          console.log("Geocoding error: " + error.message);
+          callback("Lat: " + lat + ", Lon: " + lon);
         });
-      }
-      
-      function reverseGeocode(lat, lon, callback) {
-        // Legacy function - now delegates to non-blocking version
-        reverseGeocodeNonBlocking(lat, lon);
-        callback("Lat: " + lat + ", Lon: " + lon);
       }
       
       function applyOverlayToImage(img) {
@@ -1232,8 +793,8 @@
         }
         
         // Validate employee ID and fetch current status
-        callGoogleScript('getEmployeeByID', { employeeId: empId })
-          .then(function(result) {
+        google.script.run
+          .withSuccessHandler(function(result) {
             if (result.success) {
               // Valid employee ID, check attendance status
               checkAttendanceStatus(result.employeeName);
@@ -1245,14 +806,14 @@
               btnClockOut.disabled = true;
             }
           })
-          .catch(function(error) {
+          .withFailureHandler(function(error) {
             // Error validating, disable all buttons
-            console.error("Error validating employee:", error);
             btnClockIn.disabled = true;
             btnBreakStart.disabled = true;
             btnBreakEnd.disabled = true;
             btnClockOut.disabled = true;
-          });
+          })
+          .getEmployeeByID(empId);
       }
       
       function checkAttendanceStatus(employeeName) {
@@ -1262,19 +823,20 @@
           finalName = finalName.split(" - ")[1].trim();
         }
         
-        callGoogleScript('getAttendanceStatus', { employeeName: finalName })
-          .then(function(status) {
+        google.script.run
+          .withSuccessHandler(function(status) {
             currentStatus = status;
             applyButtonLogic();
           })
-          .catch(function(error) {
+          .withFailureHandler(function(error) {
             console.log("Failed to check status: " + error.message);
             // Default to all disabled on error
             btnClockIn.disabled = true;
             btnBreakStart.disabled = true;
             btnBreakEnd.disabled = true;
             btnClockOut.disabled = true;
-          });
+          })
+          .getAttendanceStatus(finalName);
       }
       
       function applyButtonLogic() {
@@ -1319,27 +881,13 @@
       // ==========================================================================
       
       function submitAttendance(type) {
-        console.log("🚀 submitAttendance called:", type);
-        
-        // OPTIMIZED: Prevent duplicate submissions
-        if (btnClockIn.disabled && btnClockOut.disabled && btnBreakStart.disabled && btnBreakEnd.disabled) {
-          console.warn("⚠️ Submission already in progress, ignoring duplicate click");
-          return;
-        }
-        
         var empId = document.getElementById('mainFullName').value.trim();
         var selectedLocation = document.getElementById('locationSelect').value;
         
-        console.log("📋 Form data:", { type: type, empId: empId, location: selectedLocation, hasPhoto: !!base64Photo });
+        console.log("submitAttendance called:", { type: type, empId: empId, location: selectedLocation, hasPhoto: !!base64Photo });
         
-        // Validation
         if (!empId) {
           showMessage("Please enter your Employee ID.", "error");
-          return;
-        }
-        
-        if (!selectedLocation || selectedLocation === '') {
-          showMessage("Please select a location from the dropdown.", "error");
           return;
         }
         
@@ -1349,14 +897,12 @@
           return;
         }
         
-        // OPTIMIZED: Show loading immediately for better UX
+        // First, validate the Employee ID
         showLoading("Validating Employee ID...");
-        console.log("🔍 Validating employee ID:", empId);
         
-        // Validate the Employee ID
-        callGoogleScript('getEmployeeByID', { employeeId: empId })
-          .then(function(result) {
-            console.log("✅ getEmployeeByID result:", result);
+        google.script.run
+          .withSuccessHandler(function(result) {
+            console.log("getEmployeeByID result:", result);
             
             if (!result.success) {
               hideLoading();
@@ -1364,10 +910,11 @@
               return;
             }
             
+            // Employee ID is valid, proceed with confirmation
             var employeeName = result.employeeName;
             var fullName = result.fullName;
             
-            console.log("✅ Employee validated:", { employeeName: employeeName, fullName: fullName });
+            console.log("Employee validated:", { employeeName: employeeName, fullName: fullName });
             
             var actionName = "";
             if (type === 'IN') actionName = "Clock In";
@@ -1382,148 +929,63 @@
               "Confirm " + actionName + " for " + employeeName + "?",
               function(confirmed) {
                 if (!confirmed) {
-                  console.log("❌ User cancelled confirmation");
+                  console.log("User cancelled confirmation");
                   return;
                 }
                 
-                console.log("✅ User confirmed, proceeding with attendance record");
+                console.log("User confirmed, proceeding with attendance record");
                 showLoading("Processing " + actionName + "...");
 
                 var payload = {
-                  fullName: fullName,
+                  fullName: fullName, // Use validated full name
                   location: selectedLocation,
                   type: type,
                   photoBase64: base64Photo
                 };
                 
-                console.log("📤 Sending payload to backend:", { 
+                console.log("Sending payload to recordAttendance:", { 
                   fullName: payload.fullName, 
                   location: payload.location, 
                   type: payload.type, 
-                  hasPhoto: !!payload.photoBase64,
-                  photoSize: payload.photoBase64 ? payload.photoBase64.length : 0
+                  hasPhoto: !!payload.photoBase64 
                 });
-                
-                var startTime = new Date().getTime();
 
-                postGoogleScript('recordAttendance', payload)
-                  .then(function(response) {
-                    var endTime = new Date().getTime();
-                    var duration = endTime - startTime;
-                    console.log("✅ recordAttendance response received in " + duration + "ms:", response);
+                google.script.run
+                  .withSuccessHandler(function(response) {
+                    console.log("recordAttendance success:", response);
                     hideLoading();
+                    showSuccessModal(actionName + ' Successful', response);
                     
-                    // Check if response is valid
-                    if (!response) {
-                      console.error("❌ Empty response received from server");
-                      showMessage("Error: No response from server. Please try again.", "error");
-                      return;
-                    }
-                    
-                    // Check if response indicates success
-                    if (response.success === false) {
-                      console.error("❌ Backend returned error:", response.message);
-                      
-                      // Provide specific error messages
-                      let errorMessage = response.message || "Unknown error occurred";
-                      
-                      // Check for common error patterns
-                      if (errorMessage.includes("already clocked in")) {
-                        errorMessage = "⚠️ You have already clocked in today.";
-                      } else if (errorMessage.includes("already clocked out")) {
-                        errorMessage = "⚠️ You have already clocked out today.";
-                      } else if (errorMessage.includes("Break has already been started")) {
-                        errorMessage = "⚠️ Break has already been started.";
-                      } else if (errorMessage.includes("Break has already been ended")) {
-                        errorMessage = "⚠️ Break has already been ended.";
-                      } else if (errorMessage.includes("must clock in first")) {
-                        errorMessage = "⚠️ You must clock in before taking this action.";
-                      } else if (errorMessage.includes("deployed")) {
-                        errorMessage = "⚠️ " + errorMessage;
-                      } else {
-                        errorMessage = "❌ Error: " + errorMessage;
-                      }
-                      
-                      showMessage(errorMessage, "error");
-                      return;
-                    }
-                    
-                    // Verify the write was successful by checking the response message
-                    const successMessage = response.message || response || "Attendance recorded successfully";
-                    
-                    if (typeof successMessage === 'string' && 
-                        (successMessage.includes("successful") || 
-                         successMessage.includes("recorded") || 
-                         successMessage.includes("Row:"))) {
-                      
-                      console.log("🎉 SUCCESS - Attendance recorded:", successMessage);
-                      console.log("✅ VERIFICATION: Record confirmed in Google Sheet");
-                      
-                      showSuccessModal(actionName + ' Successful ✓', successMessage);
-                      
-                      // Reset form after Clock In or Clock Out
-                      if (type === 'IN' || type === 'OUT') {
-                        document.getElementById('mainFullName').value = ""; 
-                        resetFormCameraState();
-                        currentStatus = {
-                          hasClockIn: false,
-                          hasBreakStart: false,
-                          hasBreakEnd: false,
-                          hasClockOut: false
-                        };
-                      } else {
-                        // For break actions, just refresh status
-                        checkAttendanceStatus(employeeName);
-                      }
+                    // Reset form after Clock In or Clock Out
+                    if (type === 'IN' || type === 'OUT') {
+                      document.getElementById('mainFullName').value = ""; 
+                      resetFormCameraState();
+                      currentStatus = {
+                        hasClockIn: false,
+                        hasBreakStart: false,
+                        hasBreakEnd: false,
+                        hasClockOut: false
+                      };
                     } else {
-                      console.warn("⚠️ Unexpected response format:", response);
-                      showMessage("⚠️ Attendance may have been recorded, but confirmation is unclear. Please check the attendance sheet.", "error");
+                      // For break actions, just refresh status
+                      checkAttendanceStatus(employeeName);
                     }
                   })
-                  .catch(function(error) {
-                    var endTime = new Date().getTime();
-                    var duration = endTime - startTime;
-                    console.error("❌ recordAttendance failed after " + duration + "ms:", error);
-                    console.error("Error type:", error.name);
-                    console.error("Error message:", error.message);
-                    console.error("Error stack:", error.stack);
-                    
+                  .withFailureHandler(function(error) {
                     hideLoading();
-                    
-                    // Provide specific, actionable error messages
-                    let userMessage = "Unable to record attendance. ";
-                    
-                    if (error.message.includes("No internet connection")) {
-                      userMessage += "Please check your internet connection and try again.";
-                    } else if (error.message.includes("timeout")) {
-                      userMessage += "The server is taking too long to respond. Please try again.";
-                    } else if (error.message.includes("Unable to reach")) {
-                      userMessage += error.message;
-                    } else if (error.message.includes("non-JSON response")) {
-                      userMessage += "The Google Apps Script may not be deployed correctly. Please contact your administrator.";
-                    } else if (error.message.includes("Request failed")) {
-                      userMessage += error.message;
-                    } else {
-                      userMessage += "Error: " + error.message;
-                    }
-                    
-                    showMessage(userMessage, "error");
-                    
-                    // Log diagnostic information
-                    console.log("🔧 DIAGNOSTIC INFORMATION:");
-                    console.log("- Internet connected:", isOnline());
-                    console.log("- Google Script URL:", GOOGLE_SCRIPT_URL);
-                    console.log("- Action:", "recordAttendance");
-                    console.log("- Duration:", duration + "ms");
-                  });
+                    console.error("recordAttendance failed:", error);
+                    showMessage("Error recording attendance: " + (error.message || error), "error");
+                  })
+                  .recordAttendance(payload);
               }
             );
           })
-          .catch(function(error) {
-            console.error("❌ getEmployeeByID failed:", error);
+          .withFailureHandler(function(error) {
             hideLoading();
+            console.error("getEmployeeByID failed:", error);
             showMessage("Error: " + error.message, "error");
-          });
+          })
+          .getEmployeeByID(empId);
       }
 
       // ==========================================================================
@@ -1630,8 +1092,8 @@
         container.style.display = 'block';
         listDiv.innerHTML = '<div style="text-align: center; padding: 30px 20px;"><div style="font-size: 48px; margin-bottom: 10px; opacity: 0.3;">⏳</div><p style="color: #999; margin: 0; font-size: 14px;">Loading active employees...</p></div>';
         
-        callGoogleScript('getActiveClockedInEmployees')
-          .then(function(result) {
+        google.script.run
+          .withSuccessHandler(function(result) {
             if (result.success && result.employees.length > 0) {
               activeEmployeesList = result.employees;
               displayEmployeeCheckboxes(result.employees);
@@ -1642,9 +1104,10 @@
               listDiv.innerHTML = '<div style="text-align: center; padding: 30px 20px;"><div style="font-size: 48px; margin-bottom: 10px; opacity: 0.3;">⚠️</div><p style="color: #D50000; margin: 0; font-size: 14px;">Error: ' + result.message + '</p></div>';
             }
           })
-          .catch(function(error) {
+          .withFailureHandler(function(error) {
             listDiv.innerHTML = '<div style="text-align: center; padding: 30px 20px;"><div style="font-size: 48px; margin-bottom: 10px; opacity: 0.3;">⚠️</div><p style="color: #D50000; margin: 0; font-size: 14px;">Error loading employees</p><p style="color: #999; margin: 8px 0 0 0; font-size: 12px;">' + error.message + '</p></div>';
-          });
+          })
+          .getActiveClockedInEmployees();
       }
 
       function displayEmployeeCheckboxes(employees) {
@@ -1734,11 +1197,8 @@
             statusText.style.color = "#2E7D32";
             statusText.style.display = 'block';
             
-            postGoogleScript('manualClockOutSelected', {
-              employeeNames: selectedEmployees,
-              shiftType: selectedShiftType
-            })
-              .then(function(result) {
+            google.script.run
+              .withSuccessHandler(function(result) {
                 if (result.success) {
                   statusText.innerText = "✓ Success! " + result.message;
                   statusText.style.color = "#2E7D32";
@@ -1753,10 +1213,11 @@
                   statusText.style.color = "#D50000";
                 }
               })
-              .catch(function(error) {
+              .withFailureHandler(function(error) {
                 statusText.innerText = "✗ Error: " + error.message;
                 statusText.style.color = "#D50000";
-              });
+              })
+              .manualClockOutSelected(selectedEmployees, selectedShiftType);
           }
         );
       }
@@ -1767,18 +1228,19 @@
         statusText.style.color = "#2E7D32";
         statusText.style.display = 'block';
 
-        callGoogleScript('autoClockOutAM')
-          .then(function(result) {
+        google.script.run
+          .withSuccessHandler(function(result) {
             statusText.innerText = "✓ Success! " + result;
             statusText.style.color = "#2E7D32";
             setTimeout(function() {
               statusText.style.display = 'none';
             }, 3000);
           })
-          .catch(function(error) {
+          .withFailureHandler(function(error) {
             statusText.innerText = "✗ Error: " + error.message;
             statusText.style.color = "#D50000";
-          });
+          })
+          .autoClockOutAM();
       }
 
       function triggerAutoClockOutPM() {
@@ -1787,18 +1249,19 @@
         statusText.style.color = "#2E7D32";
         statusText.style.display = 'block';
 
-        callGoogleScript('autoClockOutPM')
-          .then(function(result) {
+        google.script.run
+          .withSuccessHandler(function(result) {
             statusText.innerText = "✓ Success! " + result;
             statusText.style.color = "#2E7D32";
             setTimeout(function() {
               statusText.style.display = 'none';
             }, 3000);
           })
-          .catch(function(error) {
+          .withFailureHandler(function(error) {
             statusText.innerText = "✗ Error: " + error.message;
             statusText.style.color = "#D50000";
-          });
+          })
+          .autoClockOutPM();
       }
 
       function authenticateAdmin() {
@@ -1814,8 +1277,8 @@
         
         errorText.style.display = 'none';
         
-        callGoogleScript('validateAdmin', { adminId: adminId, adminCode: adminCode })
-          .then(function(result) {
+        google.script.run
+          .withSuccessHandler(function(result) {
             if (result.success) {
               authenticatedAdmin = { adminId: result.adminId, adminName: result.adminName };
               closeAdminLogin();
@@ -1835,10 +1298,11 @@
               errorText.style.display = 'block';
             }
           })
-          .catch(function(error) {
+          .withFailureHandler(function(error) {
             errorText.innerText = "Authentication error: " + error.message;
             errorText.style.display = 'block';
-          });
+          })
+          .validateAdmin(adminId, adminCode);
       }
 
       // ==========================================================================
@@ -1938,17 +1402,18 @@
               adminName: authenticatedAdmin ? authenticatedAdmin.adminName : ""
             };
 
-            postGoogleScript('recordAttendance', payload)
-              .then(function(response) {
+            google.script.run
+              .withSuccessHandler(function(response) {
                 hideLoading();
-                showSuccessModal('Overtime Report Submitted', response.message || response);
+                showSuccessModal('Overtime Report Submitted', response);
                 resetOtFormState();
               })
-              .catch(function(error) {
+              .withFailureHandler(function(error) {
                 hideLoading();
                 document.getElementById('otMessage').innerText = error.message;
                 document.getElementById('otMessage').className = "message error";
-              });
+              })
+              .recordAttendance(payload);
           }
         );
       }
@@ -2028,17 +1493,18 @@
               adminName: authenticatedAdmin ? authenticatedAdmin.adminName : ""
             };
 
-            postGoogleScript('recordDeployment', payload)
-              .then(function(response) {
+            google.script.run
+              .withSuccessHandler(function(response) {
                 hideLoading();
-                showSuccessModal('Deployment Recorded', response.message || response);
+                showSuccessModal('Deployment Recorded', response);
                 resetDeployFormState();
               })
-              .catch(function(error) {
+              .withFailureHandler(function(error) {
                 hideLoading();
                 document.getElementById('deployMessage').innerText = error.message;
                 document.getElementById('deployMessage').className = "message error";
-              });
+              })
+              .recordDeployment(payload);
           }
         );
       }
