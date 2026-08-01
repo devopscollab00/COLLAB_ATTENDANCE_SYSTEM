@@ -1,0 +1,175 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Direct API Test</title>
+    <style>
+        body { font-family: Arial; padding: 20px; }
+        .box { background: #f0f0f0; padding: 15px; margin: 10px 0; border-radius: 5px; }
+        .success { background: #d4edda; color: #155724; }
+        .error { background: #f8d7da; color: #721c24; }
+        button { padding: 10px 20px; font-size: 16px; margin: 5px; cursor: pointer; }
+        pre { background: white; padding: 10px; border: 1px solid #ddd; overflow-x: auto; }
+    </style>
+</head>
+<body>
+    <h1>🔧 Direct Google Apps Script Test</h1>
+    
+    <div class="box">
+        <strong>Testing URL:</strong><br>
+        <code id="urlDisplay"></code>
+    </div>
+    
+    <button onclick="testNow()">▶️ RUN TEST</button>
+    <button onclick="clearLogs()">🗑️ Clear Logs</button>
+    
+    <div id="result"></div>
+    <pre id="logs"></pre>
+
+    <script>
+        // HARDCODED URL - NO VARIABLES
+        const SCRIPT_URL = "https://script.google.com/macros/s/AKfycbzHBxkZasTSEwXQSVVlvEt2Xxb4OWVrE4DGauuUY9mKq043CCWC8c6OCIE6FPPXvAYW/exec";
+        
+        document.getElementById('urlDisplay').textContent = SCRIPT_URL;
+        
+        let logs = [];
+        
+        function log(msg) {
+            const timestamp = new Date().toISOString();
+            logs.push(`[${timestamp}] ${msg}`);
+            document.getElementById('logs').textContent = logs.join('\n');
+        }
+        
+        function clearLogs() {
+            logs = [];
+            document.getElementById('logs').textContent = '';
+            document.getElementById('result').innerHTML = '';
+        }
+        
+        async function testNow() {
+            clearLogs();
+            log('🚀 Starting test...');
+            log('Target URL: ' + SCRIPT_URL);
+            
+            try {
+                // Test 1: Simple GET
+                log('\n=== TEST 1: GET Request ===');
+                const testUrl = SCRIPT_URL + '?action=getInitialData';
+                log('Full URL: ' + testUrl);
+                
+                log('Sending request...');
+                const response = await fetch(testUrl, {
+                    method: 'GET',
+                    redirect: 'follow'
+                });
+                
+                log('✅ Response received!');
+                log('Status: ' + response.status);
+                log('Status Text: ' + response.statusText);
+                log('Content-Type: ' + response.headers.get('content-type'));
+                
+                const text = await response.text();
+                log('Response length: ' + text.length + ' bytes');
+                log('First 300 chars: ' + text.substring(0, 300));
+                
+                if (response.headers.get('content-type').includes('json')) {
+                    const data = JSON.parse(text);
+                    log('✅ Valid JSON!');
+                    log('Success: ' + data.success);
+                    log('Employees: ' + (data.employees ? data.employees.length : 'N/A'));
+                    log('Locations: ' + (data.locations ? data.locations.length : 'N/A'));
+                    
+                    document.getElementById('result').innerHTML = 
+                        '<div class="box success"><h3>✅ SUCCESS!</h3>' +
+                        '<p>GET request works perfectly!</p>' +
+                        '<p>Employees loaded: ' + (data.employees ? data.employees.length : 0) + '</p>' +
+                        '<p>Locations loaded: ' + (data.locations ? data.locations.length : 0) + '</p></div>';
+                    
+                    // Test 2: POST Request
+                    log('\n=== TEST 2: POST Request ===');
+                    await testPost();
+                    
+                } else {
+                    log('❌ Response is NOT JSON!');
+                    log('This means deployment is incorrect!');
+                    document.getElementById('result').innerHTML = 
+                        '<div class="box error"><h3>❌ FAILED</h3>' +
+                        '<p>Response is not JSON. Your Google Apps Script is not deployed correctly!</p>' +
+                        '<pre>' + text.substring(0, 500) + '</pre></div>';
+                }
+                
+            } catch (error) {
+                log('❌ ERROR: ' + error.name);
+                log('Message: ' + error.message);
+                log('Stack: ' + error.stack);
+                
+                document.getElementById('result').innerHTML = 
+                    '<div class="box error"><h3>❌ ERROR</h3>' +
+                    '<p><strong>Error:</strong> ' + error.message + '</p>' +
+                    '<p><strong>Type:</strong> ' + error.name + '</p>' +
+                    '<h4>What this means:</h4>' +
+                    '<ul>' +
+                    '<li>CORS error = Deployment access is NOT set to "Anyone"</li>' +
+                    '<li>Network error = URL is wrong or Apps Script is down</li>' +
+                    '<li>Failed to fetch = Deployment not accessible</li>' +
+                    '</ul>' +
+                    '<h4>Fix:</h4>' +
+                    '<ol>' +
+                    '<li>Go to Apps Script → Deploy → Manage deployments</li>' +
+                    '<li>Edit (✏️) → "Who has access" must be "Anyone"</li>' +
+                    '<li>Deploy → Try again</li>' +
+                    '</ol></div>';
+            }
+        }
+        
+        async function testPost() {
+            try {
+                log('Preparing POST payload...');
+                const payload = {
+                    action: 'recordAttendance',
+                    fullName: 'DIRECT_TEST - User',
+                    location: 'Test Location',
+                    type: 'IN',
+                    photoBase64: ''
+                };
+                
+                log('Payload: ' + JSON.stringify(payload));
+                log('Sending POST request...');
+                
+                const response = await fetch(SCRIPT_URL, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify(payload),
+                    redirect: 'follow'
+                });
+                
+                log('✅ POST Response received!');
+                log('Status: ' + response.status);
+                
+                const text = await response.text();
+                log('Response: ' + text);
+                
+                const data = JSON.parse(text);
+                log('Success field: ' + data.success);
+                log('Message: ' + data.message);
+                
+                if (data.success !== undefined) {
+                    log('✅ POST works!');
+                    document.getElementById('result').innerHTML += 
+                        '<div class="box success"><h3>✅ POST ALSO WORKS!</h3>' +
+                        '<p>Message: ' + data.message + '</p></div>';
+                } else {
+                    log('⚠️ Unexpected response format');
+                }
+                
+            } catch (error) {
+                log('❌ POST ERROR: ' + error.message);
+                document.getElementById('result').innerHTML += 
+                    '<div class="box error"><h3>❌ POST FAILED</h3>' +
+                    '<p>' + error.message + '</p></div>';
+            }
+        }
+    </script>
+</body>
+</html>
