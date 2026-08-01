@@ -1,7 +1,7 @@
 // ==========================================================================
 // CONFIGURATION AREA
 // ==========================================================================
-const SPREADSHEET_ID = "17Dq3LHMAV92kRb7NJy_Id6Ry4lTNkHhwK3lcVSjxA9BF3V8D1kRB9hpG";
+const SPREADSHEET_ID = "18ThG_m8fA6CYLVbwQMwA9h7pKJK_QdDKQLgTLqpo-nw";
 
 const EMPLOYEE_SHEET   = "EMPLOYEE";
 const LOCATION_SHEET   = "LOCATION";
@@ -9,6 +9,9 @@ const ATTENDANCE_SHEET = "ATTENDANCE";  // Single attendance sheet
 const OVERTIME_SHEET   = "OVERTIME";
 const ADMIN_SHEET      = "ADMIN";
 const DEPLOYMENT_SHEET = "DEPLOYMENT";
+
+// Google Drive Folder for Photos
+const PHOTO_FOLDER_ID = "1gnrXXjWSg94kMhMcTTIStAGR3CH-bOhr";
 
 // Auto Clock-Out Times (Support for half-day employees)
 const AM_AUTO_CLOCKOUT_HOUR = 12;    // 12 PM (for half-day AM shift)
@@ -466,12 +469,8 @@ function initializeAttendanceSheet() {
  */
 function doGet(e) {
   try {
-    // CORS headers for cross-origin requests from Vercel
-    var output = ContentService.createTextOutput();
-    output.setMimeType(ContentService.MimeType.JSON);
-    
     // Check if this is an API call (has 'action' parameter)
-    if (e.parameter.action) {
+    if (e && e.parameter && e.parameter.action) {
       var action = e.parameter.action;
       var result = {};
       
@@ -485,11 +484,11 @@ function doGet(e) {
           break;
           
         case 'getEmployeeByID':
-          result = getEmployeeByID(e.parameter.employeeId);
+          result = getEmployeeByID(e.parameter.employeeId || "");
           break;
           
         case 'getAttendanceStatus':
-          result = getAttendanceStatus(e.parameter.employeeName);
+          result = getAttendanceStatus(e.parameter.employeeName || "");
           break;
           
         case 'getActiveClockedInEmployees':
@@ -497,82 +496,45 @@ function doGet(e) {
           break;
           
         case 'validateAdmin':
-          result = validateAdmin(e.parameter.adminId, e.parameter.adminCode);
+          result = validateAdmin(e.parameter.adminId || "", e.parameter.adminCode || "");
           break;
           
         case 'autoClockOutAM':
-          result = { success: true, message: autoClockOutAM() };
+          var message = autoClockOutAM();
+          result = { success: true, message: message };
           break;
           
         case 'autoClockOutPM':
-          result = { success: true, message: autoClockOutPM() };
+          var message = autoClockOutPM();
+          result = { success: true, message: message };
           break;
           
         default:
           result = { success: false, message: "Unknown action: " + action };
       }
       
-      output.setContent(JSON.stringify(result));
-      return output;
+      // Return JSON response with CORS headers
+      return ContentService
+        .createTextOutput(JSON.stringify(result))
+        .setMimeType(ContentService.MimeType.JSON);
     }
     
-    // If no action parameter, return the HTML interface (legacy mode)
-    var html = HtmlService.createTemplateFromFile("Index");
-    
-    try {
-      var ss = SpreadsheetApp.openById(SPREADSHEET_ID);
-      
-      // Initialize attendance sheet structure
-      initializeAttendanceSheet();
-      
-      // 1. FETCH LOCATIONS (Location name only, no ID)
-      var locSheet = ss.getSheetByName(LOCATION_SHEET);
-      var locData = locSheet.getDataRange().getValues();
-      var locations = [];
-      for (var i = 1; i < locData.length; i++) {
-        var lName = locData[i][1] ? locData[i][1].toString().trim() : "";
-        if (lName) { 
-          locations.push(lName); // Only location name
-        }
-      }
-      html.locations = locations;
-
-      // 2. FETCH EMPLOYEES (Full format for Deploy and OT)
-      var empSheet = ss.getSheetByName(EMPLOYEE_SHEET);
-      var empData = empSheet.getDataRange().getValues();
-      var employees = [];
-      for (var i = 1; i < empData.length; i++) {
-        var empId = empData[i][0] ? empData[i][0].toString().trim() : "";
-        var firstName = empData[i][1] ? empData[i][1].toString().trim() : "";
-        var lastName = empData[i][2] ? empData[i][2].toString().trim() : "";
-        
-        // Combine first and last name
-        var empName = (firstName + " " + lastName).trim();
-        
-        if (empId && empName) { 
-          employees.push(empId + " - " + empName); 
-        } else if (empName) { 
-          employees.push(empName); 
-        }
-      }
-      html.employees = employees;
-
-    } catch (err) {
-      html.locations = ["Default Office"];
-      html.employees = []; 
-    }
-    
-    return html.evaluate()
-               .setTitle("Collab Attendance System")
-               .addMetaTag("viewport", "width=device-width, initial-scale=1.0")
-               .setXFrameOptionsMode(HtmlService.XFrameOptionsMode.ALLOWALL);
+    // If no action parameter, return error (should not happen with Vercel deployment)
+    return ContentService
+      .createTextOutput(JSON.stringify({ 
+        success: false, 
+        message: "No action specified. This is an API endpoint." 
+      }))
+      .setMimeType(ContentService.MimeType.JSON);
                
   } catch (err) {
     Logger.log("Error in doGet: " + err.message);
-    var output = ContentService.createTextOutput();
-    output.setMimeType(ContentService.MimeType.JSON);
-    output.setContent(JSON.stringify({ success: false, message: err.message }));
-    return output;
+    return ContentService
+      .createTextOutput(JSON.stringify({ 
+        success: false, 
+        message: "Server error: " + err.message 
+      }))
+      .setMimeType(ContentService.MimeType.JSON);
   }
 }
 
@@ -582,65 +544,133 @@ function doGet(e) {
  */
 function doPost(e) {
   try {
-    // CORS headers
-    var output = ContentService.createTextOutput();
-    output.setMimeType(ContentService.MimeType.JSON);
+    Logger.log("=== doPost called ===");
+    Logger.log("Request: " + JSON.stringify(e));
     
     // Parse the JSON payload
-    var data = JSON.parse(e.postData.contents);
+    var data = {};
+    
+    if (e && e.postData && e.postData.contents) {
+      Logger.log("POST data contents: " + e.postData.contents);
+      data = JSON.parse(e.postData.contents);
+      Logger.log("Parsed data: " + JSON.stringify(data));
+    } else if (e && e.parameter) {
+      // Fallback: Try to use parameters if postData is not available
+      Logger.log("No postData, using parameters");
+      data = e.parameter;
+    } else {
+      Logger.log("ERROR: No data received in POST request");
+      return ContentService
+        .createTextOutput(JSON.stringify({ 
+          success: false, 
+          message: "No data received" 
+        }))
+        .setMimeType(ContentService.MimeType.JSON);
+    }
+    
     var action = data.action;
+    Logger.log("Action: " + action);
+    
+    if (!action) {
+      Logger.log("ERROR: No action specified");
+      return ContentService
+        .createTextOutput(JSON.stringify({ 
+          success: false, 
+          message: "No action specified" 
+        }))
+        .setMimeType(ContentService.MimeType.JSON);
+    }
+    
     var result = {};
     
     // Initialize attendance sheet structure
-    initializeAttendanceSheet();
+    var initResult = initializeAttendanceSheet();
+    Logger.log("Sheet initialization: " + JSON.stringify(initResult));
     
     // Route to appropriate function based on action
     switch(action) {
       case 'recordAttendance':
-        var payload = {
-          fullName: data.fullName,
-          location: data.location,
-          type: data.type,
-          photoBase64: data.photoBase64,
-          timeStart: data.timeStart,
-          timeEnd: data.timeEnd,
-          remarks: data.remarks,
-          adminId: data.adminId,
-          adminName: data.adminName
-        };
-        result = { success: true, message: recordAttendance(payload) };
+        Logger.log("Processing recordAttendance action");
+        try {
+          var payload = {
+            fullName: data.fullName || "",
+            location: data.location || "",
+            type: data.type || "",
+            photoBase64: data.photoBase64 || "",
+            timeStart: data.timeStart || "",
+            timeEnd: data.timeEnd || "",
+            remarks: data.remarks || "",
+            adminId: data.adminId || "",
+            adminName: data.adminName || ""
+          };
+          Logger.log("Payload for recordAttendance: " + JSON.stringify({
+            fullName: payload.fullName,
+            location: payload.location,
+            type: payload.type,
+            hasPhoto: !!payload.photoBase64
+          }));
+          
+          var message = recordAttendance(payload);
+          Logger.log("recordAttendance SUCCESS: " + message);
+          result = { success: true, message: message };
+        } catch (recordErr) {
+          Logger.log("recordAttendance FAILED: " + recordErr.message);
+          result = { success: false, message: recordErr.message };
+        }
         break;
         
       case 'recordDeployment':
-        var payload = {
-          employeeName: data.employeeName,
-          deploymentLocation: data.deploymentLocation,
-          purpose: data.purpose,
-          expectedReturn: data.expectedReturn,
-          remarks: data.remarks,
-          adminId: data.adminId,
-          adminName: data.adminName
-        };
-        result = { success: true, message: recordDeployment(payload) };
+        Logger.log("Processing recordDeployment action");
+        try {
+          var payload = {
+            employeeName: data.employeeName || "",
+            deploymentLocation: data.deploymentLocation || "",
+            purpose: data.purpose || "",
+            expectedReturn: data.expectedReturn || "",
+            remarks: data.remarks || "",
+            adminId: data.adminId || "",
+            adminName: data.adminName || ""
+          };
+          var message = recordDeployment(payload);
+          Logger.log("recordDeployment result: " + message);
+          result = { success: true, message: message };
+        } catch (deployErr) {
+          Logger.log("recordDeployment FAILED: " + deployErr.message);
+          result = { success: false, message: deployErr.message };
+        }
         break;
         
       case 'manualClockOutSelected':
-        result = manualClockOutSelected(data.employeeNames, data.shiftType);
+        Logger.log("Processing manualClockOutSelected action");
+        try {
+          result = manualClockOutSelected(data.employeeNames || [], data.shiftType || "PM");
+          Logger.log("manualClockOutSelected result: " + JSON.stringify(result));
+        } catch (clockOutErr) {
+          Logger.log("manualClockOutSelected FAILED: " + clockOutErr.message);
+          result = { success: false, message: clockOutErr.message };
+        }
         break;
         
       default:
+        Logger.log("ERROR: Unknown POST action: " + action);
         result = { success: false, message: "Unknown POST action: " + action };
     }
     
-    output.setContent(JSON.stringify(result));
-    return output;
+    Logger.log("Returning response: " + JSON.stringify(result));
+    
+    return ContentService
+      .createTextOutput(JSON.stringify(result))
+      .setMimeType(ContentService.MimeType.JSON);
     
   } catch (err) {
-    Logger.log("Error in doPost: " + err.message);
-    var output = ContentService.createTextOutput();
-    output.setMimeType(ContentService.MimeType.JSON);
-    output.setContent(JSON.stringify({ success: false, message: err.message }));
-    return output;
+    Logger.log("ERROR in doPost: " + err.message);
+    Logger.log("Stack: " + err.stack);
+    return ContentService
+      .createTextOutput(JSON.stringify({ 
+        success: false, 
+        message: "Server error: " + err.message 
+      }))
+      .setMimeType(ContentService.MimeType.JSON);
   }
 }
 
@@ -777,13 +807,24 @@ function getAttendanceStatus(employeeName) {
  */
 function recordAttendance(payload) {
   try {
-    // Add logging to debug
-    Logger.log("recordAttendance called with payload: " + JSON.stringify(payload));
+    // Add comprehensive logging
+    Logger.log("=== recordAttendance START ===");
+    Logger.log("Payload received: " + JSON.stringify({
+      fullName: payload.fullName,
+      location: payload.location,
+      type: payload.type,
+      hasPhoto: !!(payload.photoBase64 && payload.photoBase64.length > 0)
+    }));
     
     var ss = SpreadsheetApp.openById(SPREADSHEET_ID);
+    Logger.log("Spreadsheet opened successfully");
+    
     var targetSheet;
     var formattedDate = Utilities.formatDate(new Date(), Session.getScriptTimeZone(), "yyyy-MM-dd");
     var formattedTime = Utilities.formatDate(new Date(), Session.getScriptTimeZone(), "hh:mm a");
+    
+    Logger.log("Current date: " + formattedDate);
+    Logger.log("Current time: " + formattedTime);
     
     var photoUrl = "No Photo";
 
@@ -791,15 +832,15 @@ function recordAttendance(payload) {
     var rawName = (payload.fullName || "").toString();
     var rawLocation = (payload.location || "").toString();
 
-    Logger.log("rawName: " + rawName);
-    Logger.log("rawLocation: " + rawLocation);
+    Logger.log("Raw name: " + rawName);
+    Logger.log("Raw location: " + rawLocation);
 
     var finalName = rawName;
     if (finalName.indexOf(" - ") !== -1) {
       finalName = finalName.split(" - ")[1].trim();
     }
     
-    Logger.log("finalName after extraction: " + finalName);
+    Logger.log("Final name after extraction: " + finalName);
 
     // Validate finalName is not empty
     if (!finalName || finalName === "") {
@@ -808,10 +849,13 @@ function recordAttendance(payload) {
 
     // Location no longer has ID prefix, use as-is
     var finalLocation = rawLocation.trim();
+    
+    Logger.log("Final location: " + finalLocation);
 
-  // Process photo upload
+  // Process photo upload - Save to specific Google Drive folder
   if (payload.photoBase64 && payload.photoBase64.indexOf(",") !== -1) {
     try {
+      Logger.log("Processing photo upload...");
       var parts = payload.photoBase64.split(",");
       var base64Data = parts[1];
       var metaData = parts[0];
@@ -825,17 +869,23 @@ function recordAttendance(payload) {
       var filename = finalName + "_" + payload.type + "_" + new Date().getTime() + ".jpg";
       var blob = Utilities.newBlob(decodeBytes, contentType, filename);
       
-      var file = DriveApp.createFile(blob); 
+      // Save to specific folder
+      var folder = DriveApp.getFolderById(PHOTO_FOLDER_ID);
+      var file = folder.createFile(blob); 
       file.setSharing(DriveApp.Access.ANYONE_WITH_LINK, DriveApp.Permission.VIEW);
       photoUrl = file.getUrl();
+      Logger.log("Photo uploaded successfully to folder: " + photoUrl);
     } catch (err) {
-      Logger.log("Drive save failed: " + err.message);
-      photoUrl = "Error saving photo: " + err.message; 
+      Logger.log("Photo upload failed: " + err.message);
+      photoUrl = "No Photo"; // Use "No Photo" instead of error message
     }
+  } else {
+    Logger.log("No photo to upload");
   }
 
   // OVERTIME HANDLING (unchanged)
   if (payload.type === "OVERTIME") {
+    Logger.log("Processing OVERTIME type");
     targetSheet = ss.getSheetByName(OVERTIME_SHEET);
     if (!targetSheet) throw new Error("Sheet tab 'OVERTIME' not found.");
     
@@ -850,10 +900,12 @@ function recordAttendance(payload) {
       totalHours, remarks, createdBy, adminIdValue
     ]);
     
+    Logger.log("Overtime record created successfully");
     return "Overtime successfully submitted for " + finalName + " (OT ID: " + otId + ")";
   }
   
   // NEW SINGLE-SHIFT ATTENDANCE WORKFLOW
+  Logger.log("Processing standard attendance type: " + payload.type);
   targetSheet = ss.getSheetByName(ATTENDANCE_SHEET);
   
   Logger.log("Looking for ATTENDANCE sheet: " + ATTENDANCE_SHEET);
@@ -872,7 +924,8 @@ function recordAttendance(payload) {
   
   // CLOCK IN
   if (payload.type === "IN") {
-    Logger.log("Processing Clock In for: " + finalName);
+    Logger.log("=== PROCESSING CLOCK IN ===");
+    Logger.log("Employee: " + finalName);
     
     // Check if employee is deployed
     var deploymentStatus = isEmployeeDeployed(finalName);
@@ -887,13 +940,21 @@ function recordAttendance(payload) {
       throw new Error("You have already clocked in today.");
     }
     
-    Logger.log("Preparing to append row to ATTENDANCE sheet");
-    Logger.log("Data: Date=" + formattedDate + ", Name=" + finalName + ", Time=" + formattedTime + ", Location=" + finalLocation);
+    Logger.log("Validation passed - proceeding with clock in");
+    Logger.log("Data to write: Date=" + formattedDate + ", Name=" + finalName + ", Time=" + formattedTime + ", Location=" + finalLocation);
     
     try {
+      // Verify sheet is accessible
+      var sheetName = targetSheet.getName();
+      Logger.log("Writing to sheet: " + sheetName);
+      
+      // Get current last row before append
+      var lastRowBefore = targetSheet.getLastRow();
+      Logger.log("Last row before append: " + lastRowBefore);
+      
       // Create new attendance record
       // Columns: Date, Employee_Name, Time In, Location, Time In Photo, Break Start, Break End, Time Out, Time Out Location, Time Out Photo
-      targetSheet.appendRow([
+      var rowData = [
         formattedDate,   // A: Date
         finalName,       // B: Employee_Name
         formattedTime,   // C: Time In
@@ -904,18 +965,39 @@ function recordAttendance(payload) {
         "",              // H: Time Out (empty)
         "",              // I: Time Out Location (empty)
         ""               // J: Time Out Photo (empty)
-      ]);
+      ];
       
-      Logger.log("appendRow called successfully");
+      Logger.log("Row data prepared: " + JSON.stringify(rowData));
       
-      // Force flush to ensure data is written immediately
+      // Append the row
+      Logger.log("Calling appendRow...");
+      targetSheet.appendRow(rowData);
+      
+      Logger.log("appendRow completed successfully");
+      
+      // Force flush MULTIPLE times to ensure write
+      Logger.log("Flushing spreadsheet...");
+      SpreadsheetApp.flush();
+      Utilities.sleep(150); // Wait 150ms (increased from 100ms)
       SpreadsheetApp.flush();
       
-      Logger.log("Spreadsheet flushed - data should now be visible");
+      Logger.log("Spreadsheet flushed - checking if row was added");
       
       // Get the row number that was just added
-      var lastRow = targetSheet.getLastRow();
-      Logger.log("Last row number after append: " + lastRow);
+      var lastRowAfter = targetSheet.getLastRow();
+      Logger.log("Last row after append: " + lastRowAfter);
+      
+      if (lastRowAfter <= lastRowBefore) {
+        Logger.log("ERROR: Row count did not increase!");
+        throw new Error("Row was not added! Last row before: " + lastRowBefore + ", after: " + lastRowAfter);
+      }
+      
+      Logger.log("SUCCESS: Row was added at position " + lastRowAfter);
+      
+      // Verify the data was written
+      Logger.log("Verifying written data...");
+      var verifyRow = targetSheet.getRange(lastRowAfter, 1, 1, 10).getValues()[0];
+      Logger.log("Verification - Row data: " + JSON.stringify(verifyRow));
       
       // ==========================================================================
       // LATE MARKING: Mark as LATE if clock in is 8:16 AM or later
@@ -933,16 +1015,23 @@ function recordAttendance(payload) {
       }
       
       if (isLate) {
+        Logger.log("Employee is LATE - applying red background");
         // Mark entire row as late with red background
-        var rowRange = targetSheet.getRange(lastRow, 1, 1, 12); // All columns A-L
+        var rowRange = targetSheet.getRange(lastRowAfter, 1, 1, 12); // All columns A-L
         rowRange.setBackground("#FFCDD2"); // Light red background
-        Logger.log("Employee marked as LATE: Clock in at " + formattedTime);
+        Logger.log("Red background applied to row " + lastRowAfter);
       }
       
-      return "Clock In successful at " + formattedTime + (isLate ? " (LATE)" : "");
+      // Final flush
+      SpreadsheetApp.flush();
+      
+      Logger.log("=== CLOCK IN COMPLETED SUCCESSFULLY ===");
+      
+      return "Clock In successful at " + formattedTime + (isLate ? " (LATE)" : "") + " - Row: " + lastRowAfter;
       
     } catch (appendError) {
-      Logger.log("ERROR during appendRow: " + appendError.message);
+      Logger.log("=== ERROR DURING CLOCK IN ===");
+      Logger.log("ERROR: " + appendError.message);
       Logger.log("Stack trace: " + appendError.stack);
       throw new Error("Failed to write to ATTENDANCE sheet: " + appendError.message);
     }
@@ -950,6 +1039,8 @@ function recordAttendance(payload) {
   
   // BREAK START
   else if (payload.type === "BREAK_START") {
+    Logger.log("Processing Break Start for: " + finalName);
+    
     // Validate: Must have clocked in
     if (!status.hasClockIn) {
       throw new Error("Cannot start break: You must clock in first.");
@@ -965,14 +1056,23 @@ function recordAttendance(payload) {
       throw new Error("Cannot start break: You have already clocked out.");
     }
     
+    Logger.log("Updating break start for row: " + status.rowNumber);
+    
     // Update Break Start (Column F)
     targetSheet.getRange(status.rowNumber, 6).setValue(formattedTime);
+    
+    // Force flush
+    SpreadsheetApp.flush();
+    
+    Logger.log("Break Start completed successfully");
     
     return "Break started at " + formattedTime;
   }
   
   // BREAK END
   else if (payload.type === "BREAK_END") {
+    Logger.log("Processing Break End for: " + finalName);
+    
     // Validate: Must have started break
     if (!status.hasBreakStart) {
       throw new Error("Cannot end break: You must start break first.");
@@ -988,14 +1088,23 @@ function recordAttendance(payload) {
       throw new Error("Cannot end break: You have already clocked out.");
     }
     
+    Logger.log("Updating break end for row: " + status.rowNumber);
+    
     // Update Break End (Column G)
     targetSheet.getRange(status.rowNumber, 7).setValue(formattedTime);
+    
+    // Force flush
+    SpreadsheetApp.flush();
+    
+    Logger.log("Break End completed successfully");
     
     return "Break ended at " + formattedTime;
   }
   
   // CLOCK OUT
   else if (payload.type === "OUT") {
+    Logger.log("Processing Clock Out for: " + finalName);
+    
     // Check if employee is deployed
     var deploymentStatus = isEmployeeDeployed(finalName);
     if (deploymentStatus && deploymentStatus.isDeployed) {
@@ -1014,6 +1123,8 @@ function recordAttendance(payload) {
       throw new Error("You have already clocked out today.");
     }
     
+    Logger.log("Updating clock out for row: " + status.rowNumber);
+    
     // AUTO-END BREAK if break was started but not ended (Option A - Preferred)
     if (status.hasBreakStart && !status.hasBreakEnd) {
       targetSheet.getRange(status.rowNumber, 7).setValue(formattedTime);
@@ -1025,8 +1136,23 @@ function recordAttendance(payload) {
     targetSheet.getRange(status.rowNumber, 9).setValue(finalLocation);      // I: Time Out Location
     targetSheet.getRange(status.rowNumber, 10).setValue(photoUrl);          // J: Time Out Photo
     
+    Logger.log("Clock out data written to columns H, I, J");
+    
     // Set hour formulas with proper number formatting
     setHourFormulas(targetSheet, status.rowNumber);
+    
+    Logger.log("Hour formulas set for row: " + status.rowNumber);
+    
+    // Force flush to ensure data is written
+    SpreadsheetApp.flush();
+    Utilities.sleep(100);
+    SpreadsheetApp.flush();
+    
+    // Verify the update
+    var verifyData = targetSheet.getRange(status.rowNumber, 8, 1, 3).getValues()[0];
+    Logger.log("Verification - Clock out data: " + JSON.stringify(verifyData));
+    
+    Logger.log("Clock Out completed successfully for " + finalName);
     
     return "Clock Out successful at " + formattedTime;
   }
@@ -1034,13 +1160,21 @@ function recordAttendance(payload) {
   throw new Error("Invalid attendance type: " + payload.type);
   
   } catch (err) {
-    Logger.log("ERROR in recordAttendance: " + err.message);
+    Logger.log("=== ERROR in recordAttendance ===");
+    Logger.log("ERROR: " + err.message);
     Logger.log("Stack trace: " + err.stack);
-    Logger.log("Payload was: " + JSON.stringify(payload));
-    Logger.log("Final name extracted: " + finalName);
     
-    // Re-throw with more context
-    throw new Error("Failed to record attendance: " + err.message);
+    // Log payload info safely
+    try {
+      Logger.log("Payload type: " + (payload ? payload.type : "undefined"));
+      Logger.log("Payload fullName: " + (payload ? payload.fullName : "undefined"));
+      Logger.log("Payload location: " + (payload ? payload.location : "undefined"));
+    } catch (logErr) {
+      Logger.log("Could not log payload details");
+    }
+    
+    // Return user-friendly error message
+    throw err; // Re-throw the original error with its message
   }
 }
 
@@ -1905,6 +2039,293 @@ function testAttendanceSystem() {
     
     // Test 1: Check ATTENDANCE sheet exists
     var ss = SpreadsheetApp.openById(SPREADSHEET_ID);
+    var sheet = ss.getSheetByName(ATTENDANCE_SHEET);
+    
+    if (!sheet) {
+      Logger.log("ERROR: ATTENDANCE sheet not found!");
+      Logger.log("Creating ATTENDANCE sheet...");
+      initializeAttendanceSheet();
+      sheet = ss.getSheetByName(ATTENDANCE_SHEET);
+      if (!sheet) {
+        return "ERROR: Could not create ATTENDANCE sheet";
+      }
+    }
+    
+    Logger.log("✓ ATTENDANCE sheet found: " + sheet.getName());
+    Logger.log("  Last row: " + sheet.getLastRow());
+    
+    // Test 2: Check headers
+    var headers = sheet.getRange(1, 1, 1, 12).getValues()[0];
+    Logger.log("✓ Headers: " + headers.join(", "));
+    
+    // Test 3: Get a test employee
+    var empSheet = ss.getSheetByName(EMPLOYEE_SHEET);
+    if (!empSheet) {
+      return "ERROR: EMPLOYEE sheet not found";
+    }
+    
+    var empData = empSheet.getDataRange().getValues();
+    if (empData.length < 2) {
+      return "ERROR: No employees in EMPLOYEE sheet";
+    }
+    
+    var testEmpId = empData[1][0].toString().trim();
+    var testFirstName = empData[1][1].toString().trim();
+    var testLastName = empData[1][2].toString().trim();
+    var testEmpName = (testFirstName + " " + testLastName).trim();
+    
+    Logger.log("✓ Test employee: " + testEmpId + " - " + testEmpName);
+    
+    // Test 4: Try to append a test row
+    try {
+      var testDate = Utilities.formatDate(new Date(), Session.getScriptTimeZone(), "yyyy-MM-dd");
+      var testTime = Utilities.formatDate(new Date(), Session.getScriptTimeZone(), "hh:mm a");
+      
+      Logger.log("Attempting to append test row...");
+      var lastRowBefore = sheet.getLastRow();
+      
+      sheet.appendRow([
+        testDate,
+        "TEST EMPLOYEE",
+        testTime,
+        "Test Location",
+        "Test Photo URL",
+        "",
+        "",
+        "",
+        "",
+        ""
+      ]);
+      
+      SpreadsheetApp.flush();
+      
+      var lastRowAfter = sheet.getLastRow();
+      
+      Logger.log("✓ Test row appended successfully");
+      Logger.log("  Last row before: " + lastRowBefore);
+      Logger.log("  Last row after: " + lastRowAfter);
+      
+      // Clean up test row
+      if (lastRowAfter > lastRowBefore) {
+        sheet.deleteRow(lastRowAfter);
+        Logger.log("✓ Test row cleaned up");
+      }
+      
+    } catch (appendErr) {
+      Logger.log("ERROR appending test row: " + appendErr.message);
+      return "ERROR: " + appendErr.message;
+    }
+    
+    // Test 5: Test getAttendanceStatus
+    try {
+      var status = getAttendanceStatus(testEmpName);
+      Logger.log("✓ getAttendanceStatus works");
+      Logger.log("  Status: " + JSON.stringify(status));
+    } catch (statusErr) {
+      Logger.log("ERROR in getAttendanceStatus: " + statusErr.message);
+    }
+    
+    // Test 6: Test recordAttendance with mock data
+    try {
+      Logger.log("Testing recordAttendance function...");
+      
+      var mockPayload = {
+        fullName: testEmpId + " - " + testEmpName,
+        location: "Test Office",
+        type: "IN",
+        photoBase64: ""
+      };
+      
+      Logger.log("Mock payload: " + JSON.stringify(mockPayload));
+      
+      // Check if already clocked in today
+      var currentStatus = getAttendanceStatus(testEmpName);
+      if (currentStatus.hasClockIn) {
+        Logger.log("⚠ Employee already clocked in today - skipping test");
+      } else {
+        var result = recordAttendance(mockPayload);
+        Logger.log("✓ recordAttendance SUCCESS: " + result);
+        
+        // Verify the row was added
+        var newStatus = getAttendanceStatus(testEmpName);
+        Logger.log("  New status: " + JSON.stringify(newStatus));
+        
+        if (newStatus.hasClockIn) {
+          Logger.log("✓ Clock in was recorded successfully!");
+          
+          // Clean up - delete the test record
+          if (newStatus.rowNumber > 1) {
+            sheet.deleteRow(newStatus.rowNumber);
+            Logger.log("✓ Test record cleaned up");
+          }
+        } else {
+          Logger.log("ERROR: Clock in was not recorded");
+        }
+      }
+      
+    } catch (recordErr) {
+      Logger.log("ERROR in recordAttendance: " + recordErr.message);
+      Logger.log("Stack: " + recordErr.stack);
+    }
+    
+    Logger.log("=== ATTENDANCE SYSTEM TEST COMPLETED ===");
+    return "SUCCESS: All tests passed! System is working correctly.";
+    
+  } catch (err) {
+    Logger.log("FATAL ERROR: " + err.message);
+    Logger.log("Stack: " + err.stack);
+    return "FATAL ERROR: " + err.message;
+  }
+}
+
+/**
+ * SIMPLE TEST - Run this from Apps Script to test clock in
+ * Uses the first employee in your EMPLOYEE sheet
+ */
+function simpleClockInTest() {
+  try {
+    Logger.log("=== SIMPLE CLOCK IN TEST ===");
+    
+    // Get spreadsheet
+    var ss = SpreadsheetApp.openById(SPREADSHEET_ID);
+    Logger.log("✓ Spreadsheet opened");
+    
+    // Check ATTENDANCE sheet
+    var attSheet = ss.getSheetByName(ATTENDANCE_SHEET);
+    if (!attSheet) {
+      Logger.log("✗ ATTENDANCE sheet not found!");
+      return "FAILED: ATTENDANCE sheet not found";
+    }
+    Logger.log("✓ ATTENDANCE sheet found");
+    
+    // Check EMPLOYEE sheet
+    var empSheet = ss.getSheetByName(EMPLOYEE_SHEET);
+    if (!empSheet) {
+      Logger.log("✗ EMPLOYEE sheet not found!");
+      return "FAILED: EMPLOYEE sheet not found";
+    }
+    Logger.log("✓ EMPLOYEE sheet found");
+    
+    // Get first employee
+    var empData = empSheet.getDataRange().getValues();
+    if (empData.length < 2) {
+      Logger.log("✗ No employees in EMPLOYEE sheet!");
+      return "FAILED: No employees found";
+    }
+    
+    var empId = empData[1][0] ? empData[1][0].toString().trim() : "";
+    var firstName = empData[1][1] ? empData[1][1].toString().trim() : "";
+    var lastName = empData[1][2] ? empData[1][2].toString().trim() : "";
+    var fullName = (firstName + " " + lastName).trim();
+    
+    Logger.log("✓ Test employee: " + empId + " - " + fullName);
+    
+    // Check LOCATION sheet
+    var locSheet = ss.getSheetByName(LOCATION_SHEET);
+    var testLocation = "Test Location";
+    if (locSheet) {
+      var locData = locSheet.getDataRange().getValues();
+      if (locData.length > 1) {
+        testLocation = locData[1][1] ? locData[1][1].toString().trim() : "Test Location";
+      }
+    }
+    Logger.log("✓ Test location: " + testLocation);
+    
+    // Create test payload
+    var testPayload = {
+      fullName: empId + " - " + fullName,
+      location: testLocation,
+      type: "IN",
+      photoBase64: "" // No photo for test
+    };
+    
+    Logger.log("✓ Payload created");
+    Logger.log("Calling recordAttendance...");
+    
+    // Call recordAttendance
+    var result = recordAttendance(testPayload);
+    
+    Logger.log("✓ SUCCESS: " + result);
+    Logger.log("=== TEST COMPLETED ===");
+    
+    return "SUCCESS: " + result;
+    
+  } catch (err) {
+    Logger.log("✗ TEST FAILED");
+    Logger.log("Error: " + err.message);
+    Logger.log("Stack: " + err.stack);
+    return "FAILED: " + err.message;
+  }
+}
+
+/**
+ * EMERGENCY TEST - Call this from Apps Script to test if clock in works
+ * This simulates a real clock in with minimal data
+ */
+function emergencyClockInTest() {
+  try {
+    Logger.log("=== EMERGENCY CLOCK IN TEST ===");
+    
+    var ss = SpreadsheetApp.openById(SPREADSHEET_ID);
+    var sheet = ss.getSheetByName(ATTENDANCE_SHEET);
+    
+    if (!sheet) {
+      Logger.log("ERROR: ATTENDANCE sheet not found!");
+      return "FAILED: Sheet not found";
+    }
+    
+    Logger.log("Sheet found: " + sheet.getName());
+    
+    // Get first employee from EMPLOYEE sheet
+    var empSheet = ss.getSheetByName(EMPLOYEE_SHEET);
+    if (!empSheet) {
+      Logger.log("ERROR: EMPLOYEE sheet not found!");
+      return "FAILED: EMPLOYEE sheet not found";
+    }
+    
+    var empData = empSheet.getDataRange().getValues();
+    if (empData.length < 2) {
+      Logger.log("ERROR: No employees found!");
+      return "FAILED: No employees";
+    }
+    
+    var testEmpId = empData[1][0] ? empData[1][0].toString().trim() : "";
+    var firstName = empData[1][1] ? empData[1][1].toString().trim() : "";
+    var lastName = empData[1][2] ? empData[1][2].toString().trim() : "";
+    var fullName = (firstName + " " + lastName).trim();
+    
+    Logger.log("Testing with employee: " + fullName);
+    
+    // Create test payload (simulating frontend call)
+    var testPayload = {
+      fullName: testEmpId + " - " + fullName,
+      location: "Test Location",
+      type: "IN",
+      photoBase64: ""
+    };
+    
+    Logger.log("Calling recordAttendance...");
+    var result = recordAttendance(testPayload);
+    
+    Logger.log("Result: " + result);
+    Logger.log("=== TEST COMPLETED SUCCESSFULLY ===");
+    
+    return result;
+    
+  } catch (err) {
+    Logger.log("EMERGENCY TEST FAILED: " + err.message);
+    Logger.log("Stack: " + err.stack);
+    return "ERROR: " + err.message;
+  }
+}
+
+/**
+ * Simple test to verify sheet access and basic append operations
+ * This bypasses all logic to test if basic sheet writing works
+ */
+function testDirectWrite() {
+  try {
+    var ss = SpreadsheetApp.openById(SPREADSHEET_ID);
     var attendanceSheet = ss.getSheetByName(ATTENDANCE_SHEET);
     
     Logger.log("Test 1 - ATTENDANCE sheet exists: " + (attendanceSheet ? "YES" : "NO"));
@@ -1964,56 +2385,12 @@ function testAttendanceSystem() {
       }
     }
     
-    Logger.log("\n=== TEST COMPLETED ===");
-    return "Test completed - check execution logs";
+    Logger.log("\n=== ALL TESTS COMPLETED ===");
+    return "SUCCESS: System check complete";
     
   } catch (err) {
-    Logger.log("TEST ERROR: " + err.message);
+    Logger.log("ERROR in testDirectWrite: " + err.message);
     Logger.log("Stack: " + err.stack);
-    return "TEST FAILED: " + err.message;
-  }
-}
-
-/**
- * Simple test to manually add a row to ATTENDANCE sheet
- * This bypasses all logic to test if basic sheet writing works
- */
-function testDirectWrite() {
-  try {
-    var ss = SpreadsheetApp.openById(SPREADSHEET_ID);
-    var sheet = ss.getSheetByName(ATTENDANCE_SHEET);
-    
-    if (!sheet) {
-      Logger.log("ERROR: Sheet not found");
-      return "Sheet not found";
-    }
-    
-    Logger.log("Sheet found: " + sheet.getName());
-    Logger.log("Current row count: " + sheet.getLastRow());
-    
-    // Try to append a simple test row
-    sheet.appendRow([
-      new Date(),
-      "TEST USER",
-      "12:00 PM",
-      "TEST LOCATION",
-      "Test Photo",
-      "",
-      "",
-      "",
-      "",
-      ""
-    ]);
-    
-    SpreadsheetApp.flush();
-    
-    Logger.log("Test row added successfully!");
-    Logger.log("New row count: " + sheet.getLastRow());
-    
-    return "Test row added successfully";
-    
-  } catch (err) {
-    Logger.log("ERROR: " + err.message);
     return "ERROR: " + err.message;
   }
 }

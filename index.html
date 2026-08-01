@@ -1194,9 +1194,18 @@
 
                 postGoogleScript('recordAttendance', payload)
                   .then(function(response) {
-                    console.log("recordAttendance success:", response);
+                    console.log("recordAttendance response:", response);
                     hideLoading();
-                    showSuccessModal(actionName + ' Successful', response.message || response);
+                    
+                    // Check if response indicates success
+                    if (response.success === false) {
+                      showMessage("Error: " + (response.message || "Unknown error occurred"), "error");
+                      return;
+                    }
+                    
+                    // Success!
+                    var successMessage = response.message || response || "Attendance recorded successfully";
+                    showSuccessModal(actionName + ' Successful', successMessage);
                     
                     // Reset form after Clock In or Clock Out
                     if (type === 'IN' || type === 'OUT') {
@@ -1215,7 +1224,7 @@
                   })
                   .catch(function(error) {
                     hideLoading();
-                    console.error("recordAttendance failed:", error);
+                    console.error("recordAttendance error:", error);
                     showMessage("Error recording attendance: " + (error.message || error), "error");
                   });
               }
