@@ -139,9 +139,7 @@
       <div class="form-group">
         <label>Select Location:</label>
         <select name="locationSelect" id="locationSelect">
-          <? for (var i = 0; i < locations.length; i++) { ?>
-            <option value="<?= locations[i] ?>"><?= locations[i] ?></option>
-          <? } ?>
+          <!-- Populated dynamically from Google Apps Script -->
         </select>
       </div>
 
@@ -432,6 +430,7 @@
       
       /**
        * Load initial data (employees and locations) from Google Apps Script
+       * Used when explicitly needed (e.g., refresh button)
        */
       async function loadInitialData() {
         try {
@@ -450,13 +449,20 @@
               employeeList.appendChild(option);
             });
             
-            // Populate location dropdown
+            // Populate location dropdown (ONLY LOCATION NAMES, NO ID)
             const locationSelect = document.getElementById('locationSelect');
             locationSelect.innerHTML = '';
+            
+            // Add default option
+            const defaultOption = document.createElement('option');
+            defaultOption.value = '';
+            defaultOption.textContent = '-- Select Location --';
+            locationSelect.appendChild(defaultOption);
+            
             data.locations.forEach(loc => {
               const option = document.createElement('option');
-              option.value = loc;
-              option.textContent = loc;
+              option.value = loc; // Location name only
+              option.textContent = loc; // Display location name only
               locationSelect.appendChild(option);
             });
             
@@ -471,11 +477,56 @@
         }
       }
       
-      // Load data when page loads
+      // Load data when page loads (no loading screen)
       window.addEventListener('DOMContentLoaded', function() {
-        loadInitialData();
+        loadInitialDataSilent();
         updateLiveClock();
       });
+      
+      /**
+       * Load initial data without showing loading overlay
+       * Silently populate dropdowns in background
+       */
+      async function loadInitialDataSilent() {
+        try {
+          // Fetch employees and locations
+          const data = await callGoogleScript('getInitialData');
+          
+          if (data.success) {
+            // Populate employee datalist
+            const employeeList = document.getElementById('employeeList');
+            employeeList.innerHTML = '';
+            data.employees.forEach(emp => {
+              const option = document.createElement('option');
+              option.value = emp;
+              employeeList.appendChild(option);
+            });
+            
+            // Populate location dropdown (ONLY LOCATION NAMES, NO ID)
+            const locationSelect = document.getElementById('locationSelect');
+            locationSelect.innerHTML = '';
+            
+            // Add default option
+            const defaultOption = document.createElement('option');
+            defaultOption.value = '';
+            defaultOption.textContent = '-- Select Location --';
+            locationSelect.appendChild(defaultOption);
+            
+            data.locations.forEach(loc => {
+              const option = document.createElement('option');
+              option.value = loc; // Location name only
+              option.textContent = loc; // Display location name only
+              locationSelect.appendChild(option);
+            });
+          } else {
+            // Silently fail - don't show error on page load
+            console.error("Failed to load initial data:", data.message);
+          }
+        } catch (error) {
+          // Silently fail - don't show error on page load
+          console.error("Failed to connect to server:", error);
+        }
+      }
       
       // ==========================================================================
       // GLOBAL VARIABLES
@@ -1017,6 +1068,12 @@
         
         if (!empId) {
           showMessage("Please enter your Employee ID.", "error");
+          return;
+        }
+        
+        // Validate location is selected
+        if (!selectedLocation || selectedLocation === '') {
+          showMessage("Please select a location from the dropdown.", "error");
           return;
         }
         
