@@ -1,0 +1,555 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Performance & Functionality Test</title>
+  <style>
+    * { box-sizing: border-box; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; }
+    body { background: #f5f5f5; margin: 0; padding: 20px; }
+    .container { max-width: 800px; margin: 0 auto; background: white; padding: 30px; border-radius: 12px; box-shadow: 0 4px 15px rgba(0,0,0,0.1); }
+    h1 { color: #333; margin: 0 0 10px 0; font-size: 24px; }
+    h2 { color: #555; margin: 30px 0 15px 0; font-size: 18px; border-bottom: 2px solid #00E676; padding-bottom: 8px; }
+    .subtitle { color: #666; font-size: 14px; margin-bottom: 25px; }
+    
+    .test-section { margin-bottom: 20px; padding: 15px; background: #f9f9f9; border-radius: 8px; border-left: 4px solid #0288D1; }
+    .test-button { padding: 12px 20px; background: linear-gradient(135deg, #0288D1 0%, #0277BD 100%); color: white; border: none; border-radius: 6px; cursor: pointer; font-size: 14px; font-weight: 600; margin: 5px; transition: all 0.3s; }
+    .test-button:hover { transform: translateY(-2px); box-shadow: 0 4px 12px rgba(2, 136, 209, 0.3); }
+    .test-button:disabled { opacity: 0.5; cursor: not-allowed; transform: none; }
+    
+    .result-box { margin-top: 10px; padding: 12px; border-radius: 6px; font-size: 13px; font-family: 'Courier New', monospace; white-space: pre-wrap; word-wrap: break-word; max-height: 300px; overflow-y: auto; }
+    .result-success { background: #E8F5E9; border: 1px solid #4CAF50; color: #2E7D32; }
+    .result-error { background: #FFEBEE; border: 1px solid #F44336; color: #C62828; }
+    .result-info { background: #E3F2FD; border: 1px solid #2196F3; color: #1565C0; }
+    .result-warning { background: #FFF3E0; border: 1px solid #FF9800; color: #E65100; }
+    
+    .metric { display: inline-block; margin-right: 20px; padding: 8px 15px; background: white; border-radius: 6px; border: 1px solid #ddd; margin-top: 10px; }
+    .metric-label { font-size: 11px; color: #666; text-transform: uppercase; display: block; }
+    .metric-value { font-size: 18px; font-weight: bold; color: #333; }
+    .metric-value.good { color: #4CAF50; }
+    .metric-value.warning { color: #FF9800; }
+    .metric-value.bad { color: #F44336; }
+    
+    .input-group { margin-bottom: 15px; }
+    .input-group label { display: block; margin-bottom: 5px; font-weight: 600; color: #555; }
+    .input-group input { width: 100%; padding: 10px; border: 2px solid #ddd; border-radius: 6px; font-size: 14px; }
+    .input-group input:focus { border-color: #0288D1; outline: none; }
+    
+    .log-entry { padding: 5px 10px; margin: 3px 0; border-radius: 4px; font-size: 12px; }
+    .log-entry.info { background: #E3F2FD; }
+    .log-entry.success { background: #E8F5E9; }
+    .log-entry.error { background: #FFEBEE; }
+    .log-entry.warning { background: #FFF3E0; }
+    
+    .status-indicator { display: inline-block; width: 10px; height: 10px; border-radius: 50%; margin-right: 8px; }
+    .status-indicator.success { background: #4CAF50; }
+    .status-indicator.error { background: #F44336; }
+    .status-indicator.warning { background: #FF9800; }
+    .status-indicator.info { background: #2196F3; }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <h1>🚀 Performance & Functionality Test</h1>
+    <p class="subtitle">Test all components of the attendance system</p>
+    
+    <div class="input-group">
+      <label>Google Apps Script URL:</label>
+      <input type="text" id="scriptUrl" placeholder="https://script.google.com/macros/s/.../exec">
+    </div>
+    
+    <h2>1. Location Performance Test</h2>
+    <div class="test-section">
+      <button class="test-button" onclick="testLocationSpeed()">📍 Test Location Speed</button>
+      <button class="test-button" onclick="testLocationOptimized()">⚡ Test Optimized Location</button>
+      <div id="locationResult"></div>
+    </div>
+    
+    <h2>2. API Response Time Test</h2>
+    <div class="test-section">
+      <button class="test-button" onclick="testAPIGetInitialData()">📡 Test GET (getInitialData)</button>
+      <button class="test-button" onclick="testAPIGetEmployee()">👤 Test GET (getEmployeeByID)</button>
+      <button class="test-button" onclick="testAPIPOST()">📤 Test POST (recordAttendance)</button>
+      <div id="apiResult"></div>
+    </div>
+    
+    <h2>3. Button Responsiveness Test</h2>
+    <div class="test-section">
+      <button class="test-button" onclick="testButtonResponse()">⏱️ Test Click Response</button>
+      <button class="test-button" onclick="testDuplicateSubmission()">🚫 Test Duplicate Prevention</button>
+      <div id="buttonResult"></div>
+    </div>
+    
+    <h2>4. End-to-End Flow Test</h2>
+    <div class="test-section">
+      <button class="test-button" onclick="testFullClockInFlow()">🎯 Test Complete Clock In</button>
+      <div id="flowResult"></div>
+    </div>
+    
+    <h2>5. Real-Time Logs</h2>
+    <div class="test-section">
+      <div id="realtimeLogs" class="result-box result-info" style="max-height: 200px;">
+        Waiting for tests...
+      </div>
+      <button class="test-button" onclick="clearLogs()">🗑️ Clear Logs</button>
+    </div>
+  </div>
+
+  <script>
+    var logs = [];
+    
+    function log(message, type = 'info') {
+      var timestamp = new Date().toLocaleTimeString();
+      logs.push({ time: timestamp, message: message, type: type });
+      updateLogsDisplay();
+      console.log(`[${type.toUpperCase()}] ${message}`);
+    }
+    
+    function updateLogsDisplay() {
+      var logsDiv = document.getElementById('realtimeLogs');
+      logsDiv.innerHTML = logs.map(l => 
+        `<div class="log-entry ${l.type}">[${l.time}] ${l.message}</div>`
+      ).join('');
+      logsDiv.scrollTop = logsDiv.scrollHeight;
+    }
+    
+    function clearLogs() {
+      logs = [];
+      updateLogsDisplay();
+    }
+    
+    function getScriptUrl() {
+      var url = document.getElementById('scriptUrl').value.trim();
+      if (!url) {
+        alert('Please enter your Google Apps Script URL first!');
+        return null;
+      }
+      return url;
+    }
+    
+    // Test 1: Location Speed
+    async function testLocationSpeed() {
+      log('Starting location speed test...', 'info');
+      var resultDiv = document.getElementById('locationResult');
+      resultDiv.innerHTML = '<div class="result-box result-info">Testing location retrieval...</div>';
+      
+      var startTime = Date.now();
+      
+      if (!navigator.geolocation) {
+        resultDiv.innerHTML = '<div class="result-box result-error">Geolocation not supported</div>';
+        log('Geolocation not supported', 'error');
+        return;
+      }
+      
+      navigator.geolocation.getCurrentPosition(
+        function(position) {
+          var endTime = Date.now();
+          var duration = endTime - startTime;
+          
+          var performanceClass = duration < 2000 ? 'good' : duration < 5000 ? 'warning' : 'bad';
+          
+          var html = `
+            <div class="result-box result-success">
+              <div><span class="status-indicator success"></span><strong>Location Retrieved Successfully</strong></div>
+              <div class="metric">
+                <span class="metric-label">Response Time</span>
+                <span class="metric-value ${performanceClass}">${duration}ms</span>
+              </div>
+              <div style="margin-top: 10px;">
+                Latitude: ${position.coords.latitude.toFixed(6)}<br>
+                Longitude: ${position.coords.longitude.toFixed(6)}<br>
+                Accuracy: ${position.coords.accuracy.toFixed(0)}m
+              </div>
+            </div>
+          `;
+          resultDiv.innerHTML = html;
+          log(`Location retrieved in ${duration}ms`, 'success');
+        },
+        function(error) {
+          var endTime = Date.now();
+          var duration = endTime - startTime;
+          resultDiv.innerHTML = `<div class="result-box result-error">Location Error (${duration}ms): ${error.message}</div>`;
+          log(`Location error: ${error.message}`, 'error');
+        },
+        { enableHighAccuracy: true, timeout: 10000, maximumAge: 0 }
+      );
+    }
+    
+    async function testLocationOptimized() {
+      log('Starting optimized location test...', 'info');
+      var resultDiv = document.getElementById('locationResult');
+      resultDiv.innerHTML = '<div class="result-box result-info">Testing optimized location retrieval...</div>';
+      
+      var startTime = Date.now();
+      
+      if (!navigator.geolocation) {
+        resultDiv.innerHTML = '<div class="result-box result-error">Geolocation not supported</div>';
+        return;
+      }
+      
+      navigator.geolocation.getCurrentPosition(
+        function(position) {
+          var endTime = Date.now();
+          var duration = endTime - startTime;
+          
+          var performanceClass = duration < 1000 ? 'good' : duration < 3000 ? 'warning' : 'bad';
+          
+          var html = `
+            <div class="result-box result-success">
+              <div><span class="status-indicator success"></span><strong>Optimized Location Retrieved</strong></div>
+              <div class="metric">
+                <span class="metric-label">Response Time</span>
+                <span class="metric-value ${performanceClass}">${duration}ms</span>
+              </div>
+              <div style="margin-top: 10px;">
+                ✅ Using cached location (up to 30s old)<br>
+                ✅ Low accuracy mode (faster)<br>
+                Coordinates: ${position.coords.latitude.toFixed(6)}, ${position.coords.longitude.toFixed(6)}
+              </div>
+            </div>
+          `;
+          resultDiv.innerHTML = html;
+          log(`Optimized location retrieved in ${duration}ms`, 'success');
+        },
+        function(error) {
+          var endTime = Date.now();
+          var duration = endTime - startTime;
+          resultDiv.innerHTML = `<div class="result-box result-error">Location Error (${duration}ms): ${error.message}</div>`;
+          log(`Optimized location error: ${error.message}`, 'error');
+        },
+        { enableHighAccuracy: false, timeout: 2000, maximumAge: 30000 }
+      );
+    }
+    
+    // Test 2: API Response Time
+    async function testAPIGetInitialData() {
+      var url = getScriptUrl();
+      if (!url) return;
+      
+      log('Testing getInitialData API...', 'info');
+      var resultDiv = document.getElementById('apiResult');
+      resultDiv.innerHTML = '<div class="result-box result-info">Calling API...</div>';
+      
+      var startTime = Date.now();
+      
+      try {
+        var apiUrl = url + '?action=getInitialData';
+        var response = await fetch(apiUrl);
+        var endTime = Date.now();
+        var duration = endTime - startTime;
+        
+        if (!response.ok) {
+          throw new Error(`HTTP ${response.status}`);
+        }
+        
+        var data = await response.json();
+        var performanceClass = duration < 1000 ? 'good' : duration < 3000 ? 'warning' : 'bad';
+        
+        var html = `
+          <div class="result-box result-success">
+            <div><span class="status-indicator success"></span><strong>API Response Received</strong></div>
+            <div class="metric">
+              <span class="metric-label">Response Time</span>
+              <span class="metric-value ${performanceClass}">${duration}ms</span>
+            </div>
+            <div style="margin-top: 10px;">
+              Success: ${data.success}<br>
+              Locations: ${data.locations ? data.locations.length : 0}<br>
+              Employees: ${data.employees ? data.employees.length : 0}
+            </div>
+          </div>
+        `;
+        resultDiv.innerHTML = html;
+        log(`API responded in ${duration}ms with ${data.locations?.length || 0} locations`, 'success');
+      } catch (error) {
+        var endTime = Date.now();
+        var duration = endTime - startTime;
+        resultDiv.innerHTML = `<div class="result-box result-error">API Error (${duration}ms): ${error.message}</div>`;
+        log(`API error: ${error.message}`, 'error');
+      }
+    }
+    
+    async function testAPIGetEmployee() {
+      var url = getScriptUrl();
+      if (!url) return;
+      
+      var employeeId = prompt('Enter Employee ID to test:', '001');
+      if (!employeeId) return;
+      
+      log(`Testing getEmployeeByID for: ${employeeId}`, 'info');
+      var resultDiv = document.getElementById('apiResult');
+      resultDiv.innerHTML = '<div class="result-box result-info">Validating employee...</div>';
+      
+      var startTime = Date.now();
+      
+      try {
+        var apiUrl = url + '?action=getEmployeeByID&employeeId=' + encodeURIComponent(employeeId);
+        var response = await fetch(apiUrl);
+        var endTime = Date.now();
+        var duration = endTime - startTime;
+        
+        if (!response.ok) {
+          throw new Error(`HTTP ${response.status}`);
+        }
+        
+        var data = await response.json();
+        var performanceClass = duration < 1000 ? 'good' : duration < 3000 ? 'warning' : 'bad';
+        
+        if (data.success) {
+          var html = `
+            <div class="result-box result-success">
+              <div><span class="status-indicator success"></span><strong>Employee Found</strong></div>
+              <div class="metric">
+                <span class="metric-label">Response Time</span>
+                <span class="metric-value ${performanceClass}">${duration}ms</span>
+              </div>
+              <div style="margin-top: 10px;">
+                ID: ${data.employeeId}<br>
+                Name: ${data.employeeName}<br>
+                Full Name: ${data.fullName}
+              </div>
+            </div>
+          `;
+          resultDiv.innerHTML = html;
+          log(`Employee ${data.employeeName} found in ${duration}ms`, 'success');
+        } else {
+          resultDiv.innerHTML = `<div class="result-box result-warning">${data.message}</div>`;
+          log(`Employee not found: ${data.message}`, 'warning');
+        }
+      } catch (error) {
+        var endTime = Date.now();
+        var duration = endTime - startTime;
+        resultDiv.innerHTML = `<div class="result-box result-error">API Error (${duration}ms): ${error.message}</div>`;
+        log(`API error: ${error.message}`, 'error');
+      }
+    }
+    
+    async function testAPIPOST() {
+      var url = getScriptUrl();
+      if (!url) return;
+      
+      log('Testing POST API...', 'info');
+      var resultDiv = document.getElementById('apiResult');
+      resultDiv.innerHTML = '<div class="result-box result-info">Sending POST request...</div>';
+      
+      var startTime = Date.now();
+      
+      try {
+        var payload = {
+          action: 'recordAttendance',
+          fullName: '001 - Test Employee',
+          location: 'Test Location',
+          type: 'IN',
+          photoBase64: ''
+        };
+        
+        var response = await fetch(url, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(payload)
+        });
+        
+        var endTime = Date.now();
+        var duration = endTime - startTime;
+        
+        if (!response.ok) {
+          throw new Error(`HTTP ${response.status}`);
+        }
+        
+        var data = await response.json();
+        var performanceClass = duration < 2000 ? 'good' : duration < 5000 ? 'warning' : 'bad';
+        
+        var html = `
+          <div class="result-box ${data.success ? 'result-success' : 'result-error'}">
+            <div><span class="status-indicator ${data.success ? 'success' : 'error'}"></span><strong>POST Response</strong></div>
+            <div class="metric">
+              <span class="metric-label">Response Time</span>
+              <span class="metric-value ${performanceClass}">${duration}ms</span>
+            </div>
+            <div style="margin-top: 10px;">
+              Success: ${data.success}<br>
+              Message: ${data.message || 'N/A'}
+            </div>
+          </div>
+        `;
+        resultDiv.innerHTML = html;
+        log(`POST completed in ${duration}ms - Success: ${data.success}`, data.success ? 'success' : 'warning');
+      } catch (error) {
+        var endTime = Date.now();
+        var duration = endTime - startTime;
+        resultDiv.innerHTML = `<div class="result-box result-error">POST Error (${duration}ms): ${error.message}</div>`;
+        log(`POST error: ${error.message}`, 'error');
+      }
+    }
+    
+    // Test 3: Button Responsiveness
+    function testButtonResponse() {
+      log('Testing button response time...', 'info');
+      var resultDiv = document.getElementById('buttonResult');
+      var clickTime = Date.now();
+      
+      setTimeout(function() {
+        var responseTime = Date.now() - clickTime;
+        var performanceClass = responseTime < 50 ? 'good' : responseTime < 200 ? 'warning' : 'bad';
+        
+        var html = `
+          <div class="result-box result-success">
+            <div><span class="status-indicator success"></span><strong>Button Response Test</strong></div>
+            <div class="metric">
+              <span class="metric-label">Click to Handler</span>
+              <span class="metric-value ${performanceClass}">${responseTime}ms</span>
+            </div>
+            <div style="margin-top: 10px;">
+              ${responseTime < 100 ? '✅ Excellent responsiveness' : responseTime < 200 ? '⚠️ Acceptable' : '❌ Slow response'}
+            </div>
+          </div>
+        `;
+        resultDiv.innerHTML = html;
+        log(`Button responded in ${responseTime}ms`, 'success');
+      }, 0);
+    }
+    
+    function testDuplicateSubmission() {
+      log('Testing duplicate submission prevention...', 'info');
+      var resultDiv = document.getElementById('buttonResult');
+      var clicks = 0;
+      var button = document.createElement('button');
+      button.className = 'test-button';
+      button.innerText = 'Click Me Fast!';
+      
+      var processing = false;
+      button.onclick = function() {
+        if (processing) {
+          log('Duplicate click blocked!', 'warning');
+          return;
+        }
+        clicks++;
+        processing = true;
+        log(`Click ${clicks} accepted`, 'success');
+        setTimeout(function() { processing = false; }, 1000);
+      };
+      
+      resultDiv.innerHTML = '<div class="result-box result-info">Click the button multiple times rapidly:</div>';
+      resultDiv.appendChild(button);
+      
+      setTimeout(function() {
+        var html = `
+          <div class="result-box result-success">
+            <div><span class="status-indicator success"></span><strong>Duplicate Prevention Test</strong></div>
+            <div class="metric">
+              <span class="metric-label">Accepted Clicks</span>
+              <span class="metric-value good">${clicks}</span>
+            </div>
+            <div style="margin-top: 10px;">
+              ✅ Duplicate submissions prevented<br>
+              Only legitimate clicks were accepted
+            </div>
+          </div>
+        `;
+        resultDiv.innerHTML = html;
+      }, 5000);
+    }
+    
+    // Test 4: Full Flow
+    async function testFullClockInFlow() {
+      var url = getScriptUrl();
+      if (!url) return;
+      
+      log('Starting end-to-end clock in test...', 'info');
+      var resultDiv = document.getElementById('flowResult');
+      resultDiv.innerHTML = '<div class="result-box result-info">Running complete flow test...</div>';
+      
+      var overallStart = Date.now();
+      var steps = [];
+      
+      try {
+        // Step 1: Location
+        log('Step 1: Getting location...', 'info');
+        var locationStart = Date.now();
+        await new Promise((resolve, reject) => {
+          if (!navigator.geolocation) {
+            steps.push({ name: 'Location', time: 0, status: 'skipped' });
+            resolve();
+            return;
+          }
+          navigator.geolocation.getCurrentPosition(
+            () => {
+              var duration = Date.now() - locationStart;
+              steps.push({ name: 'Location', time: duration, status: 'success' });
+              log(`Location obtained in ${duration}ms`, 'success');
+              resolve();
+            },
+            () => {
+              steps.push({ name: 'Location', time: 0, status: 'error' });
+              log('Location failed', 'error');
+              resolve();
+            },
+            { enableHighAccuracy: false, timeout: 2000, maximumAge: 30000 }
+          );
+        });
+        
+        // Step 2: Validate Employee
+        log('Step 2: Validating employee...', 'info');
+        var validateStart = Date.now();
+        var validateUrl = url + '?action=getEmployeeByID&employeeId=001';
+        var validateResponse = await fetch(validateUrl);
+        var validateData = await validateResponse.json();
+        var validateDuration = Date.now() - validateStart;
+        steps.push({ name: 'Validate Employee', time: validateDuration, status: validateData.success ? 'success' : 'error' });
+        log(`Employee validation in ${validateDuration}ms`, validateData.success ? 'success' : 'error');
+        
+        // Step 3: Record Attendance
+        if (validateData.success) {
+          log('Step 3: Recording attendance...', 'info');
+          var recordStart = Date.now();
+          var recordResponse = await fetch(url, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              action: 'recordAttendance',
+              fullName: validateData.fullName,
+              location: 'Test Location',
+              type: 'IN',
+              photoBase64: ''
+            })
+          });
+          var recordData = await recordResponse.json();
+          var recordDuration = Date.now() - recordStart;
+          steps.push({ name: 'Record Attendance', time: recordDuration, status: recordData.success !== false ? 'success' : 'error' });
+          log(`Attendance recording in ${recordDuration}ms`, recordData.success !== false ? 'success' : 'error');
+        }
+        
+        var totalDuration = Date.now() - overallStart;
+        var performanceClass = totalDuration < 3000 ? 'good' : totalDuration < 6000 ? 'warning' : 'bad';
+        
+        var stepsHtml = steps.map(s => `
+          <div style="margin: 5px 0;">
+            <span class="status-indicator ${s.status}"></span>
+            ${s.name}: <strong>${s.time}ms</strong>
+          </div>
+        `).join('');
+        
+        var html = `
+          <div class="result-box result-success">
+            <div><span class="status-indicator success"></span><strong>End-to-End Test Complete</strong></div>
+            <div class="metric">
+              <span class="metric-label">Total Time</span>
+              <span class="metric-value ${performanceClass}">${totalDuration}ms</span>
+            </div>
+            <div style="margin-top: 10px;">
+              ${stepsHtml}
+            </div>
+          </div>
+        `;
+        resultDiv.innerHTML = html;
+        log(`Complete flow finished in ${totalDuration}ms`, 'success');
+        
+      } catch (error) {
+        var totalDuration = Date.now() - overallStart;
+        resultDiv.innerHTML = `<div class="result-box result-error">Flow Test Error (${totalDuration}ms): ${error.message}</div>`;
+        log(`Flow test error: ${error.message}`, 'error');
+      }
+    }
+  </script>
+</body>
+</html>

@@ -363,6 +363,7 @@
        * @returns {Promise} Promise that resolves with the API response
        */
       async function callGoogleScript(action, params = {}) {
+        var startTime = new Date().getTime();
         try {
           const url = new URL(GOOGLE_SCRIPT_URL);
           url.searchParams.append('action', action);
@@ -375,15 +376,18 @@
             }
           });
           
-          console.log("Calling API:", url.toString());
+          console.log("📡 API GET Request:", action, params);
+          console.log("🔗 URL:", url.toString().substring(0, 100) + "...");
           
           const response = await fetch(url.toString(), {
             method: 'GET',
             redirect: 'follow'
           });
           
-          console.log("Response status:", response.status);
-          console.log("Response headers:", response.headers.get('content-type'));
+          var endTime = new Date().getTime();
+          console.log("⏱️ Response received in " + (endTime - startTime) + "ms");
+          console.log("📊 Response status:", response.status);
+          console.log("📋 Response headers:", response.headers.get('content-type'));
           
           if (!response.ok) {
             throw new Error(`HTTP error! status: ${response.status}`);
@@ -393,15 +397,16 @@
           const contentType = response.headers.get('content-type');
           if (!contentType || !contentType.includes('application/json')) {
             const text = await response.text();
-            console.error("Response is not JSON:", text.substring(0, 500));
+            console.error("❌ Response is not JSON:", text.substring(0, 500));
             throw new Error("Server returned non-JSON response. Check if Apps Script is deployed correctly.");
           }
           
           const data = await response.json();
-          console.log("Parsed JSON data:", data);
+          console.log("✅ Parsed JSON data:", data);
           return data;
         } catch (error) {
-          console.error('API call error:', error);
+          var endTime = new Date().getTime();
+          console.error('❌ API call error after ' + (endTime - startTime) + 'ms:', error);
           console.error('Action was:', action);
           console.error('Params were:', params);
           throw error;
@@ -415,7 +420,11 @@
        * @returns {Promise} Promise that resolves with the API response
        */
       async function postGoogleScript(action, payload = {}) {
+        var startTime = new Date().getTime();
         try {
+          console.log("📡 API POST Request:", action);
+          console.log("📦 Payload size:", JSON.stringify(payload).length, "bytes");
+          
           const response = await fetch(GOOGLE_SCRIPT_URL, {
             method: 'POST',
             headers: {
@@ -428,14 +437,20 @@
             redirect: 'follow'
           });
           
+          var endTime = new Date().getTime();
+          console.log("⏱️ Response received in " + (endTime - startTime) + "ms");
+          console.log("📊 Response status:", response.status);
+          
           if (!response.ok) {
             throw new Error(`HTTP error! status: ${response.status}`);
           }
           
           const data = await response.json();
+          console.log("✅ Response data:", data);
           return data;
         } catch (error) {
-          console.error('API POST call error:', error);
+          var endTime = new Date().getTime();
+          console.error('❌ API POST call error after ' + (endTime - startTime) + 'ms:', error);
           throw error;
         }
       }
@@ -708,24 +723,57 @@
       }
 
       function handleMobilePhoto(input) {
+        console.log("📸 Processing captured photo...");
         var file = input.files[0];
-        if (!file) return;
+        if (!file) {
+          console.warn("⚠️ No file selected");
+          return;
+        }
 
+        console.log("📸 File size:", file.size, "bytes, type:", file.type);
         document.getElementById('cameraStatus').innerText = "Processing image...";
         document.getElementById('cameraStatus').style.display = 'block';
         
-        // Capture location and timestamp, then process image
+        // OPTIMIZED: Capture location in parallel with photo processing
+        var locationCaptured = false;
+        console.log("📍 Starting parallel location capture");
         captureLocationAndTimestamp(function() {
-          document.getElementById('cameraStatus').innerText = "Preparing photo...";
+          console.log("✅ Location captured");
+          locationCaptured = true;
+        });
+        
+        // Process photo
+        document.getElementById('cameraStatus').innerText = "Preparing photo...";
+        
+        var reader = new FileReader();
+        reader.onload = function(e) {
+          console.log("✅ File read complete");
+          var img = new Image();
           
-          var reader = new FileReader();
-          reader.onload = function(e) {
-            var img = new Image();
-            
-            // Add error handler for iOS
-            img.onerror = function() {
-              console.error("Image loading failed, attempting fallback...");
-              // Fallback: use the raw image without canvas processing
+          // Add error handler for iOS
+          img.onerror = function() {
+            console.error("❌ Image loading failed, using fallback");
+            // Fallback: use the raw image without canvas processing
+            base64Photo = e.target.result;
+            photoPreview.src = base64Photo;
+            photoPreview.style.display = 'block';
+            cameraStatus.style.display = 'none';
+            btnCapture.innerText = "🔄 RE-TAKE PHOTO";
+            btnCapture.style.backgroundColor = "#e0a800";
+            updateButtonStates();
+            clearMessage();
+            console.log("✅ Photo ready (fallback mode)");
+          };
+          
+          img.onload = function() {
+            try {
+              console.log("✅ Image loaded, dimensions:", img.width, "x", img.height);
+              document.getElementById('cameraStatus').innerText = "Adding overlay...";
+              applyOverlayToImage(img);
+              console.log("✅ Photo processing complete");
+            } catch (error) {
+              console.error("❌ Canvas processing failed:", error);
+              // Fallback: use the raw image without overlay
               base64Photo = e.target.result;
               photoPreview.src = base64Photo;
               photoPreview.style.display = 'block';
@@ -734,117 +782,103 @@
               btnCapture.style.backgroundColor = "#e0a800";
               updateButtonStates();
               clearMessage();
-            };
-            
-            img.onload = function() {
-              try {
-                document.getElementById('cameraStatus').innerText = "Adding location overlay...";
-                applyOverlayToImage(img);
-              } catch (error) {
-                console.error("Canvas processing failed:", error);
-                // Fallback: use the raw image without overlay
-                base64Photo = e.target.result;
-                photoPreview.src = base64Photo;
-                photoPreview.style.display = 'block';
-                cameraStatus.style.display = 'none';
-                btnCapture.innerText = "🔄 RE-TAKE PHOTO";
-                btnCapture.style.backgroundColor = "#e0a800";
-                updateButtonStates();
-                clearMessage();
-              }
-            };
-            
-            // Set crossOrigin for better iOS compatibility
-            img.crossOrigin = "anonymous";
-            img.src = e.target.result;
+              console.log("✅ Photo ready (fallback mode)");
+            }
           };
           
-          reader.onerror = function() {
-            console.error("FileReader failed");
-            document.getElementById('cameraStatus').innerText = "Error reading image. Please try again.";
-            document.getElementById('cameraStatus').style.color = "#D50000";
-            setTimeout(function() {
-              document.getElementById('cameraStatus').innerText = "No Photo Captured Yet";
-              document.getElementById('cameraStatus').style.color = "white";
-            }, 3000);
-          };
-          
-          reader.readAsDataURL(file);
-        });
+          // Set crossOrigin for better iOS compatibility
+          img.crossOrigin = "anonymous";
+          img.src = e.target.result;
+        };
+        
+        reader.onerror = function() {
+          console.error("❌ FileReader failed");
+          document.getElementById('cameraStatus').innerText = "Error reading image. Please try again.";
+          document.getElementById('cameraStatus').style.color = "#D50000";
+          setTimeout(function() {
+            document.getElementById('cameraStatus').innerText = "No Photo Captured Yet";
+            document.getElementById('cameraStatus').style.color = "white";
+          }, 3000);
+        };
+        
+        reader.readAsDataURL(file);
       }
       
       function captureLocationAndTimestamp(callback) {
+        console.log("📍 Starting location capture...");
         capturedTimestamp = new Date();
         
-        // Ensure callback is called even if location/geocoding hangs (critical for iOS)
+        // Ensure callback is called even if location/geocoding hangs
         var callbackCalled = false;
         var safeCallback = function() {
           if (!callbackCalled) {
             callbackCalled = true;
+            console.log("📍 Location capture complete, executing callback");
             callback();
           }
         };
         
-        // Failsafe timeout - proceed after 8 seconds regardless
+        // OPTIMIZED: Reduced timeout to 3 seconds for better UX
         var failsafeTimer = setTimeout(function() {
-          console.log("Location/geocoding timeout - proceeding without full location data");
+          console.warn("⚠️ Location timeout (3s) - proceeding without full location");
           if (!callbackCalled) {
             capturedLocation = capturedLocation || { available: false };
             capturedAddress = capturedAddress || "Location timeout";
             safeCallback();
           }
-        }, 8000);
+        }, 3000); // Reduced from 8000ms to 3000ms
         
         if (navigator.geolocation) {
+          console.log("📍 Requesting GPS position...");
           navigator.geolocation.getCurrentPosition(
             function(position) {
+              console.log("✅ GPS position obtained:", position.coords.latitude, position.coords.longitude);
               capturedLocation = {
                 latitude: position.coords.latitude.toFixed(6),
                 longitude: position.coords.longitude.toFixed(6),
                 available: true
               };
               
-              // Reverse geocode to get human-readable address with timeout
-              var geocodeTimeout = setTimeout(function() {
-                if (!callbackCalled) {
-                  capturedAddress = "Lat: " + capturedLocation.latitude + ", Lon: " + capturedLocation.longitude;
-                  clearTimeout(failsafeTimer);
-                  safeCallback();
-                }
-              }, 5000);
-              
-              reverseGeocode(capturedLocation.latitude, capturedLocation.longitude, function(address) {
-                clearTimeout(geocodeTimeout);
-                clearTimeout(failsafeTimer);
-                capturedAddress = address || "Address not found";
-                safeCallback();
-              });
-            },
-            function(error) {
-              console.log("Geolocation error: " + error.message);
+              // OPTIMIZED: Proceed immediately with coordinates, geocode in background
               clearTimeout(failsafeTimer);
-              capturedLocation = { available: false };
-              capturedAddress = "Location unavailable";
+              capturedAddress = "Lat: " + capturedLocation.latitude + ", Lon: " + capturedLocation.longitude;
+              
+              // Attempt geocoding but don't wait for it
+              reverseGeocodeNonBlocking(capturedLocation.latitude, capturedLocation.longitude);
+              
               safeCallback();
             },
-            { enableHighAccuracy: true, timeout: 6000, maximumAge: 0 }
+            function(error) {
+              console.error("❌ Geolocation error:", error.message);
+              clearTimeout(failsafeTimer);
+              capturedLocation = { available: false };
+              capturedAddress = "Location unavailable: " + error.message;
+              safeCallback();
+            },
+            { 
+              enableHighAccuracy: false, // OPTIMIZED: Use false for faster response
+              timeout: 2000,              // OPTIMIZED: Reduced from 6000ms to 2000ms
+              maximumAge: 30000           // OPTIMIZED: Allow cached location up to 30s old
+            }
           );
         } else {
+          console.warn("⚠️ Geolocation not supported");
           clearTimeout(failsafeTimer);
           capturedLocation = { available: false };
-          capturedAddress = "Location unavailable";
+          capturedAddress = "Location not supported";
           safeCallback();
         }
       }
       
-      function reverseGeocode(lat, lon, callback) {
+      // OPTIMIZED: Non-blocking geocoding - updates address after callback
+      function reverseGeocodeNonBlocking(lat, lon) {
+        console.log("🗺️ Starting background geocoding...");
         var url = "https://nominatim.openstreetmap.org/reverse?format=json&lat=" + lat + "&lon=" + lon + "&zoom=18&addressdetails=1";
         
-        // Use AbortController for timeout support (iOS compatible)
         var controller = new AbortController();
         var timeoutId = setTimeout(function() {
           controller.abort();
-        }, 4000); // 4 second timeout for geocoding
+        }, 2000); // Reduced from 4000ms to 2000ms
         
         fetch(url, {
           headers: { 'User-Agent': 'CollabAttendanceSystem/1.0' },
@@ -856,7 +890,8 @@
         })
         .then(function(data) {
           if (data && data.display_name) {
-            callback(data.display_name);
+            console.log("✅ Geocoding complete:", data.display_name);
+            capturedAddress = data.display_name;
           } else if (data && data.address) {
             var addr = data.address;
             var addressParts = [];
@@ -864,16 +899,22 @@
             if (addr.suburb || addr.neighbourhood) addressParts.push(addr.suburb || addr.neighbourhood);
             if (addr.city || addr.town || addr.village) addressParts.push(addr.city || addr.town || addr.village);
             if (addr.state) addressParts.push(addr.state);
-            callback(addressParts.join(", "));
-          } else {
-            callback("Address not found");
+            var address = addressParts.join(", ");
+            console.log("✅ Geocoding complete:", address);
+            capturedAddress = address;
           }
         })
         .catch(function(error) {
           clearTimeout(timeoutId);
-          console.log("Geocoding error: " + error.message);
-          callback("Lat: " + lat + ", Lon: " + lon);
+          console.warn("⚠️ Geocoding failed:", error.message);
+          // Keep coordinate-based address
         });
+      }
+      
+      function reverseGeocode(lat, lon, callback) {
+        // Legacy function - now delegates to non-blocking version
+        reverseGeocodeNonBlocking(lat, lon);
+        callback("Lat: " + lat + ", Lon: " + lon);
       }
       
       function applyOverlayToImage(img) {
@@ -1117,17 +1158,25 @@
       // ==========================================================================
       
       function submitAttendance(type) {
+        console.log("🚀 submitAttendance called:", type);
+        
+        // OPTIMIZED: Prevent duplicate submissions
+        if (btnClockIn.disabled && btnClockOut.disabled && btnBreakStart.disabled && btnBreakEnd.disabled) {
+          console.warn("⚠️ Submission already in progress, ignoring duplicate click");
+          return;
+        }
+        
         var empId = document.getElementById('mainFullName').value.trim();
         var selectedLocation = document.getElementById('locationSelect').value;
         
-        console.log("submitAttendance called:", { type: type, empId: empId, location: selectedLocation, hasPhoto: !!base64Photo });
+        console.log("📋 Form data:", { type: type, empId: empId, location: selectedLocation, hasPhoto: !!base64Photo });
         
+        // Validation
         if (!empId) {
           showMessage("Please enter your Employee ID.", "error");
           return;
         }
         
-        // Validate location is selected
         if (!selectedLocation || selectedLocation === '') {
           showMessage("Please select a location from the dropdown.", "error");
           return;
@@ -1139,12 +1188,14 @@
           return;
         }
         
-        // First, validate the Employee ID
+        // OPTIMIZED: Show loading immediately for better UX
         showLoading("Validating Employee ID...");
+        console.log("🔍 Validating employee ID:", empId);
         
+        // Validate the Employee ID
         callGoogleScript('getEmployeeByID', { employeeId: empId })
           .then(function(result) {
-            console.log("getEmployeeByID result:", result);
+            console.log("✅ getEmployeeByID result:", result);
             
             if (!result.success) {
               hideLoading();
@@ -1152,11 +1203,10 @@
               return;
             }
             
-            // Employee ID is valid, proceed with confirmation
             var employeeName = result.employeeName;
             var fullName = result.fullName;
             
-            console.log("Employee validated:", { employeeName: employeeName, fullName: fullName });
+            console.log("✅ Employee validated:", { employeeName: employeeName, fullName: fullName });
             
             var actionName = "";
             if (type === 'IN') actionName = "Clock In";
@@ -1171,40 +1221,47 @@
               "Confirm " + actionName + " for " + employeeName + "?",
               function(confirmed) {
                 if (!confirmed) {
-                  console.log("User cancelled confirmation");
+                  console.log("❌ User cancelled confirmation");
                   return;
                 }
                 
-                console.log("User confirmed, proceeding with attendance record");
+                console.log("✅ User confirmed, proceeding with attendance record");
                 showLoading("Processing " + actionName + "...");
 
                 var payload = {
-                  fullName: fullName, // Use validated full name
+                  fullName: fullName,
                   location: selectedLocation,
                   type: type,
                   photoBase64: base64Photo
                 };
                 
-                console.log("Sending payload to recordAttendance:", { 
+                console.log("📤 Sending payload to backend:", { 
                   fullName: payload.fullName, 
                   location: payload.location, 
                   type: payload.type, 
-                  hasPhoto: !!payload.photoBase64 
+                  hasPhoto: !!payload.photoBase64,
+                  photoSize: payload.photoBase64 ? payload.photoBase64.length : 0
                 });
+                
+                var startTime = new Date().getTime();
 
                 postGoogleScript('recordAttendance', payload)
                   .then(function(response) {
-                    console.log("recordAttendance response:", response);
+                    var endTime = new Date().getTime();
+                    var duration = endTime - startTime;
+                    console.log("✅ recordAttendance response received in " + duration + "ms:", response);
                     hideLoading();
                     
                     // Check if response indicates success
                     if (response.success === false) {
+                      console.error("❌ Backend returned error:", response.message);
                       showMessage("Error: " + (response.message || "Unknown error occurred"), "error");
                       return;
                     }
                     
                     // Success!
                     var successMessage = response.message || response || "Attendance recorded successfully";
+                    console.log("🎉 SUCCESS:", successMessage);
                     showSuccessModal(actionName + ' Successful', successMessage);
                     
                     // Reset form after Clock In or Clock Out
@@ -1223,16 +1280,18 @@
                     }
                   })
                   .catch(function(error) {
+                    var endTime = new Date().getTime();
+                    var duration = endTime - startTime;
+                    console.error("❌ recordAttendance failed after " + duration + "ms:", error);
                     hideLoading();
-                    console.error("recordAttendance error:", error);
                     showMessage("Error recording attendance: " + (error.message || error), "error");
                   });
               }
             );
           })
           .catch(function(error) {
+            console.error("❌ getEmployeeByID failed:", error);
             hideLoading();
-            console.error("getEmployeeByID failed:", error);
             showMessage("Error: " + error.message, "error");
           });
       }
