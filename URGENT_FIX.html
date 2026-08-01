@@ -1,0 +1,250 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <title>🚨 URGENT: Test Direct Connection</title>
+    <style>
+        body { font-family: Arial; padding: 20px; background: #f5f5f5; }
+        .box { background: white; padding: 20px; border-radius: 8px; margin: 10px 0; box-shadow: 0 2px 4px rgba(0,0,0,0.1); }
+        .success { background: #d4edda; color: #155724; padding: 15px; border-radius: 5px; margin: 10px 0; }
+        .error { background: #f8d7da; color: #721c24; padding: 15px; border-radius: 5px; margin: 10px 0; }
+        button { background: #007bff; color: white; padding: 12px 24px; border: none; border-radius: 5px; cursor: pointer; font-size: 16px; margin: 5px; }
+        button:hover { background: #0056b3; }
+        pre { background: #f4f4f4; padding: 10px; border-radius: 4px; overflow-x: auto; }
+        h1 { color: #d9534f; }
+        .step { background: #fff3cd; padding: 10px; margin: 10px 0; border-left: 4px solid #ffc107; }
+    </style>
+</head>
+<body>
+    <h1>🚨 URGENT: Fix "Failed to Fetch" Error</h1>
+    
+    <div class="box">
+        <h2>Current Situation</h2>
+        <p>Your Web App URL: <code>https://script.google.com/macros/s/AKfycbzHBxkZasTSEwXQSVVlvEt2Xxb4OWVrE4DGauuUY9mKq043CCWC8c6OCIE6FPPXvAYW/exec</code></p>
+        <p><strong>Problem:</strong> CORS is blocking the request because the Google Apps Script deployment might not be set correctly.</p>
+    </div>
+
+    <div class="box">
+        <h2>Step 1: Test Direct Connection</h2>
+        <button onclick="testDirect()">🔍 Test GET Request</button>
+        <button onclick="testPost()">📤 Test POST Request</button>
+        <div id="result1"></div>
+    </div>
+
+    <div class="box">
+        <h2>Step 2: Check Deployment Settings</h2>
+        <div class="step">
+            <strong>Go to Google Apps Script:</strong>
+            <ol>
+                <li>Open your spreadsheet: <code>1Bcj_LzJAKT6q5z2xNopz0OGSIp-tJnxL0Dibw9cwszs</code></li>
+                <li>Extensions → Apps Script</li>
+                <li>Click <strong>Deploy</strong> → <strong>Manage deployments</strong></li>
+                <li>Verify these settings:
+                    <ul>
+                        <li>✅ Execute as: <strong>Me (your-email@gmail.com)</strong></li>
+                        <li>✅ Who has access: <strong>Anyone</strong></li>
+                    </ul>
+                </li>
+                <li>If wrong, click ✏️ edit → Fix settings → Deploy</li>
+            </ol>
+        </div>
+    </div>
+
+    <div class="box">
+        <h2>Step 3: Verify code.gs is Deployed</h2>
+        <div class="step">
+            <ol>
+                <li>In Apps Script, make sure you SAVED the latest code.gs (💾 Save)</li>
+                <li>Click <strong>Deploy</strong> → <strong>Manage deployments</strong></li>
+                <li>Click ✏️ edit icon</li>
+                <li>Under "Version", select <strong>New version</strong></li>
+                <li>Click <strong>Deploy</strong></li>
+                <li>Wait for "Deployment successfully updated" message</li>
+            </ol>
+        </div>
+    </div>
+
+    <div class="box">
+        <h2>Step 4: Test Again</h2>
+        <button onclick="testAfterFix()">✅ Re-test After Fix</button>
+        <div id="result2"></div>
+    </div>
+
+    <div class="box">
+        <h2>Logs</h2>
+        <pre id="logs">Click a button to start testing...</pre>
+    </div>
+
+    <script>
+        const SCRIPT_URL = "https://script.google.com/macros/s/AKfycbzHBxkZasTSEwXQSVVlvEt2Xxb4OWVrE4DGauuUY9mKq043CCWC8c6OCIE6FPPXvAYW/exec";
+        
+        function log(msg) {
+            const logsEl = document.getElementById('logs');
+            const timestamp = new Date().toLocaleTimeString();
+            logsEl.textContent += `[${timestamp}] ${msg}\n`;
+        }
+
+        async function testDirect() {
+            document.getElementById('result1').innerHTML = '<p>Testing...</p>';
+            log('🔍 Testing GET request to Google Apps Script...');
+            log('URL: ' + SCRIPT_URL);
+            
+            try {
+                const url = SCRIPT_URL + '?action=getInitialData';
+                log('Full URL: ' + url);
+                
+                const response = await fetch(url, {
+                    method: 'GET',
+                    redirect: 'follow',
+                    mode: 'cors'
+                });
+                
+                log('✅ Response status: ' + response.status);
+                log('Content-Type: ' + response.headers.get('content-type'));
+                
+                const text = await response.text();
+                log('Response (first 200 chars): ' + text.substring(0, 200));
+                
+                if (response.headers.get('content-type').includes('application/json')) {
+                    const data = JSON.parse(text);
+                    log('✅ Valid JSON received');
+                    log('Employees: ' + (data.employees ? data.employees.length : 0));
+                    log('Locations: ' + (data.locations ? data.locations.length : 0));
+                    
+                    document.getElementById('result1').innerHTML = 
+                        '<div class="success">✅ SUCCESS! GET request works.<br>Employees: ' + 
+                        (data.employees ? data.employees.length : 0) + 
+                        '<br>Locations: ' + (data.locations ? data.locations.length : 0) + '</div>';
+                } else {
+                    log('❌ Response is NOT JSON!');
+                    log('Full response: ' + text);
+                    document.getElementById('result1').innerHTML = 
+                        '<div class="error">❌ ERROR: Response is not JSON<br>This means deployment is wrong!<br><pre>' + 
+                        text.substring(0, 500) + '</pre></div>';
+                }
+                
+            } catch (error) {
+                log('❌ ERROR: ' + error.message);
+                log('Error name: ' + error.name);
+                document.getElementById('result1').innerHTML = 
+                    '<div class="error">❌ FAILED: ' + error.message + 
+                    '<br><br><strong>Fix:</strong> Check deployment settings in Apps Script!</div>';
+            }
+        }
+
+        async function testPost() {
+            document.getElementById('result1').innerHTML = '<p>Testing POST...</p>';
+            log('📤 Testing POST request to Google Apps Script...');
+            
+            try {
+                const payload = {
+                    action: 'recordAttendance',
+                    fullName: 'TEST001 - Test User',
+                    location: 'Test Location',
+                    type: 'IN',
+                    photoBase64: ''
+                };
+                
+                log('Payload: ' + JSON.stringify(payload));
+                
+                const response = await fetch(SCRIPT_URL, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify(payload),
+                    redirect: 'follow',
+                    mode: 'cors'
+                });
+                
+                log('✅ Response status: ' + response.status);
+                
+                const text = await response.text();
+                log('Response: ' + text.substring(0, 300));
+                
+                const data = JSON.parse(text);
+                
+                if (data.success === false && data.message.includes('already clocked in')) {
+                    log('✅ POST works! (Expected error for test user)');
+                    document.getElementById('result1').innerHTML = 
+                        '<div class="success">✅ SUCCESS! POST request works.<br>Message: ' + data.message + '</div>';
+                } else if (data.success) {
+                    log('✅ POST succeeded!');
+                    document.getElementById('result1').innerHTML = 
+                        '<div class="success">✅ SUCCESS! POST works!<br>Message: ' + data.message + '</div>';
+                } else {
+                    log('⚠️ POST returned error: ' + data.message);
+                    document.getElementById('result1').innerHTML = 
+                        '<div class="error">POST returned: ' + data.message + '</div>';
+                }
+                
+            } catch (error) {
+                log('❌ POST ERROR: ' + error.message);
+                document.getElementById('result1').innerHTML = 
+                    '<div class="error">❌ POST FAILED: ' + error.message + 
+                    '<br><br><strong>Most likely:</strong> Deployment settings are wrong or code not deployed!</div>';
+            }
+        }
+
+        async function testAfterFix() {
+            document.getElementById('result2').innerHTML = '<p>Re-testing...</p>';
+            log('🔄 Re-testing after fix...');
+            
+            // Clear cache first
+            log('Clearing cache...');
+            
+            try {
+                // Test GET
+                log('Testing GET...');
+                const getResponse = await fetch(SCRIPT_URL + '?action=getInitialData&_=' + Date.now(), {
+                    method: 'GET',
+                    cache: 'no-cache'
+                });
+                
+                const getData = await getResponse.json();
+                
+                if (getData.success) {
+                    log('✅ GET works!');
+                    
+                    // Test POST
+                    log('Testing POST...');
+                    const postResponse = await fetch(SCRIPT_URL, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({
+                            action: 'recordAttendance',
+                            fullName: 'TEST - User',
+                            location: 'Test',
+                            type: 'IN',
+                            photoBase64: ''
+                        }),
+                        cache: 'no-cache'
+                    });
+                    
+                    const postData = await postResponse.json();
+                    log('POST response: ' + JSON.stringify(postData));
+                    
+                    document.getElementById('result2').innerHTML = 
+                        '<div class="success">🎉 ALL TESTS PASSED!<br>✅ GET: ' + getData.employees.length + 
+                        ' employees<br>✅ POST: ' + (postData.success ? 'Working' : postData.message) + '</div>';
+                } else {
+                    log('❌ GET failed');
+                    document.getElementById('result2').innerHTML = 
+                        '<div class="error">Still not working. Check deployment again!</div>';
+                }
+                
+            } catch (error) {
+                log('❌ Test failed: ' + error.message);
+                document.getElementById('result2').innerHTML = 
+                    '<div class="error">❌ Still failing: ' + error.message + '</div>';
+            }
+        }
+        
+        // Auto-test on load
+        window.addEventListener('DOMContentLoaded', function() {
+            log('Page loaded. Ready to test.');
+            log('Using URL: ' + SCRIPT_URL);
+        });
+    </script>
+</body>
+</html>

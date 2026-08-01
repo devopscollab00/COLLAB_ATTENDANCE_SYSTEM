@@ -531,17 +531,25 @@ function initializeAttendanceSheet() {
 
 /**
  * Handle GET requests - For Vercel frontend integration
- * Returns JSON responses for API calls
+ * Returns JSON responses for API calls with proper CORS headers
  */
 function doGet(e) {
   try {
+    Logger.log("=== doGet called at " + new Date().toISOString() + " ===");
+    
     // Check if this is an API call (has 'action' parameter)
     if (e && e.parameter && e.parameter.action) {
       var action = e.parameter.action;
+      Logger.log("🎯 GET Action: " + action);
+      
       var result = {};
       
       // Initialize attendance sheet structure on first call
-      initializeAttendanceSheet();
+      try {
+        initializeAttendanceSheet();
+      } catch (initErr) {
+        Logger.log("⚠️ Sheet init warning: " + initErr.message);
+      }
       
       // Route to appropriate function based on action
       switch(action) {
@@ -579,26 +587,32 @@ function doGet(e) {
           result = { success: false, message: "Unknown action: " + action };
       }
       
+      Logger.log("✅ GET Request completed successfully");
+      
       // Return JSON response with CORS headers
       return ContentService
         .createTextOutput(JSON.stringify(result))
         .setMimeType(ContentService.MimeType.JSON);
     }
     
-    // If no action parameter, return error (should not happen with Vercel deployment)
+    // If no action parameter, return error
+    Logger.log("❌ No action parameter in GET request");
     return ContentService
       .createTextOutput(JSON.stringify({ 
         success: false, 
-        message: "No action specified. This is an API endpoint." 
+        message: "No action specified. This is an API endpoint.",
+        timestamp: new Date().toISOString()
       }))
       .setMimeType(ContentService.MimeType.JSON);
                
   } catch (err) {
-    Logger.log("Error in doGet: " + err.message);
+    Logger.log("❌ Error in doGet: " + err.message);
+    Logger.log("🔍 Stack: " + err.stack);
     return ContentService
       .createTextOutput(JSON.stringify({ 
         success: false, 
-        message: "Server error: " + err.message 
+        message: "Server error: " + err.message,
+        timestamp: new Date().toISOString()
       }))
       .setMimeType(ContentService.MimeType.JSON);
   }
