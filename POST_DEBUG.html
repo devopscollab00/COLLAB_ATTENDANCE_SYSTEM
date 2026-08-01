@@ -1,0 +1,170 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>POST Debug Test</title>
+    <style>
+        body { font-family: monospace; padding: 20px; background: #1e1e1e; color: #00ff00; }
+        button { padding: 15px 30px; font-size: 16px; margin: 10px; cursor: pointer; }
+        .log { background: #000; padding: 15px; border: 1px solid #00ff00; margin: 10px 0; }
+        .error { color: #ff0000; }
+        .success { color: #00ff00; }
+        .info { color: #ffff00; }
+    </style>
+</head>
+<body>
+    <h1>🔍 POST Method Debugging</h1>
+    <p>This will try different methods to send POST data</p>
+    
+    <button onclick="test1()">Test 1: Standard POST</button>
+    <button onclick="test2()">Test 2: POST with text/plain</button>
+    <button onclick="test3()">Test 3: POST as form data</button>
+    <button onclick="test4()">Test 4: GET with payload in URL</button>
+    <button onclick="clearLogs()">Clear</button>
+    
+    <div id="logs" class="log"></div>
+
+    <script>
+        const URL = "https://script.google.com/macros/s/AKfycbzHBxkZasTSEwXQSVVlvEt2Xxb4OWVrE4DGauuUY9mKq043CCWC8c6OCIE6FPPXvAYW/exec";
+        
+        function log(msg, type = 'info') {
+            const div = document.getElementById('logs');
+            const time = new Date().toLocaleTimeString();
+            div.innerHTML += `<div class="${type}">[${time}] ${msg}</div>`;
+        }
+        
+        function clearLogs() {
+            document.getElementById('logs').innerHTML = '';
+        }
+        
+        // Test 1: Standard POST with JSON
+        async function test1() {
+            log('=== TEST 1: Standard POST with application/json ===', 'info');
+            try {
+                const payload = {
+                    action: 'recordAttendance',
+                    fullName: 'TEST - User',
+                    location: 'Test',
+                    type: 'IN',
+                    photoBase64: ''
+                };
+                
+                log('Sending: ' + JSON.stringify(payload).substring(0, 100));
+                
+                const response = await fetch(URL, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(payload),
+                    mode: 'cors',
+                    redirect: 'follow'
+                });
+                
+                log('Status: ' + response.status, 'success');
+                const text = await response.text();
+                log('Response: ' + text.substring(0, 200), 'success');
+                
+            } catch (error) {
+                log('ERROR: ' + error.message, 'error');
+                log('This is the method that\'s failing!', 'error');
+            }
+        }
+        
+        // Test 2: POST with text/plain (bypasses CORS preflight)
+        async function test2() {
+            log('=== TEST 2: POST with text/plain ===', 'info');
+            try {
+                const payload = {
+                    action: 'recordAttendance',
+                    fullName: 'TEST - User',
+                    location: 'Test',
+                    type: 'IN',
+                    photoBase64: ''
+                };
+                
+                log('Sending as text/plain...');
+                
+                const response = await fetch(URL, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'text/plain' },
+                    body: JSON.stringify(payload),
+                    redirect: 'follow'
+                });
+                
+                log('Status: ' + response.status, 'success');
+                const text = await response.text();
+                log('Response: ' + text.substring(0, 200), 'success');
+                
+            } catch (error) {
+                log('ERROR: ' + error.message, 'error');
+            }
+        }
+        
+        // Test 3: POST as form data
+        async function test3() {
+            log('=== TEST 3: POST as URL-encoded form ===', 'info');
+            try {
+                const formData = new URLSearchParams();
+                formData.append('action', 'recordAttendance');
+                formData.append('fullName', 'TEST - User');
+                formData.append('location', 'Test');
+                formData.append('type', 'IN');
+                formData.append('photoBase64', '');
+                
+                log('Sending as form data...');
+                
+                const response = await fetch(URL, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+                    body: formData.toString(),
+                    redirect: 'follow'
+                });
+                
+                log('Status: ' + response.status, 'success');
+                const text = await response.text();
+                log('Response: ' + text.substring(0, 200), 'success');
+                
+            } catch (error) {
+                log('ERROR: ' + error.message, 'error');
+            }
+        }
+        
+        // Test 4: Use GET but encode payload in URL
+        async function test4() {
+            log('=== TEST 4: GET with payload (WORKAROUND) ===', 'info');
+            try {
+                // This is a workaround - send "POST" data via GET
+                const payload = {
+                    action: 'recordAttendance',
+                    fullName: 'TEST - User',
+                    location: 'Test',
+                    type: 'IN',
+                    photoBase64: ''
+                };
+                
+                // Encode as URL parameters
+                const params = new URLSearchParams(payload).toString();
+                const testUrl = URL + '?' + params;
+                
+                log('Sending via GET with params...');
+                log('URL length: ' + testUrl.length);
+                
+                const response = await fetch(testUrl, {
+                    method: 'GET',
+                    redirect: 'follow'
+                });
+                
+                log('Status: ' + response.status, 'success');
+                const text = await response.text();
+                log('Response: ' + text.substring(0, 300), 'success');
+                
+                const data = JSON.parse(text);
+                if (data.success !== undefined) {
+                    log('✅ THIS METHOD WORKS! We can use GET as a workaround!', 'success');
+                }
+                
+            } catch (error) {
+                log('ERROR: ' + error.message, 'error');
+            }
+        }
+    </script>
+</body>
+</html>
