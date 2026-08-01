@@ -350,8 +350,7 @@
       // ==========================================================================
       // CONFIGURATION - Update this URL with your deployed Google Apps Script URL
       // ==========================================================================
-      const GOOGLE_SCRIPT_URL = "https://script.google.com/macros/s/AKfycby-GcNmWrVWJ3_rItsxFjDn2FCgEX91fr7QEkyXMXIauHSXq_u2vBQ7aKm0efNlkMru/exec";
-      
+      const GOOGLE_SCRIPT_URL = "https://script.google.com/macros/s/AKfycbxr_kSTKWZ0NchAXoR9k9z56a8q9hYSgLk_-tTExIJFD2PdgE3MdO-uzMmay3-NYuhi/exec";
       // ==========================================================================
       // API HELPER FUNCTIONS
       // ==========================================================================
@@ -475,6 +474,7 @@
       
       /**
        * Make POST API call to Google Apps Script (for large payloads) with retry logic
+       * WORKAROUND: Actually uses GET with URL parameters due to CORS issues
        * @param {string} action - The function name to call
        * @param {object} payload - Data to send
        * @param {number} retryCount - Current retry attempt (default 0)
@@ -488,8 +488,8 @@
         var startTime = new Date().getTime();
         
         try {
-          console.log("📡 API POST Request (Attempt " + (retryCount + 1) + "/" + (MAX_RETRIES + 1) + "):", action);
-          console.log("📦 Payload size:", JSON.stringify(payload).length, "bytes");
+          console.log("📡 API Request via GET (POST workaround) (Attempt " + (retryCount + 1) + "/" + (MAX_RETRIES + 1) + "):", action);
+          console.log("📦 Payload:", payload);
           console.log("🔗 Target URL:", GOOGLE_SCRIPT_URL);
           
           // Check internet connection first
@@ -497,25 +497,27 @@
             throw new Error("No internet connection. Please check your network and try again.");
           }
           
+          // Build URL with parameters (GET workaround)
+          const url = new URL(GOOGLE_SCRIPT_URL);
+          url.searchParams.append('action', action);
+          
+          // Add all payload fields as URL parameters
+          Object.keys(payload).forEach(key => {
+            if (payload[key] !== null && payload[key] !== undefined) {
+              url.searchParams.append(key, payload[key]);
+            }
+          });
+          
+          console.log("📤 Request URL length:", url.toString().length, "characters");
+          console.log("⏳ Sending GET request with " + TIMEOUT_MS + "ms timeout...");
+          
           // Create abort controller for timeout
           const controller = new AbortController();
           const timeoutId = setTimeout(() => controller.abort(), TIMEOUT_MS);
           
-          const requestBody = JSON.stringify({
-            action: action,
-            ...payload
-          });
-          
-          console.log("📤 Request body prepared, size:", requestBody.length, "bytes");
-          console.log("⏳ Sending request with " + TIMEOUT_MS + "ms timeout...");
-          
-          // Make fetch request
-          const response = await fetch(GOOGLE_SCRIPT_URL, {
-            method: 'POST',
-            headers: {
-              'Content-Type': 'application/json',
-            },
-            body: requestBody,
+          // Make GET request (not POST)
+          const response = await fetch(url.toString(), {
+            method: 'GET',
             redirect: 'follow',
             signal: controller.signal
           });
@@ -572,8 +574,9 @@
           // Log performance metrics
           console.log("📊 Performance:", {
             duration: duration + "ms",
-            payloadSize: requestBody.length + " bytes",
-            retries: retryCount
+            payloadSize: url.toString().length + " chars",
+            retries: retryCount,
+            method: "GET (POST workaround)"
           });
           
           return data;
@@ -581,7 +584,7 @@
         } catch (error) {
           var endTime = new Date().getTime();
           var duration = endTime - startTime;
-          console.error('❌ API POST call error after ' + duration + 'ms:', error);
+          console.error('❌ API call error after ' + duration + 'ms:', error);
           console.error('Error type:', error.name);
           console.error('Error message:', error.message);
           
