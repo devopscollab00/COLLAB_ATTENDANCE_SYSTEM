@@ -530,17 +530,73 @@ function initializeAttendanceSheet() {
 }
 
 /**
+ * Helper: Create standardized error response
+ */
+function createErrorResponse(message, errorCode) {
+  return ContentService
+    .createTextOutput(JSON.stringify({ 
+      success: false, 
+      message: message,
+      error: errorCode,
+      timestamp: new Date().toISOString()
+    }))
+    .setMimeType(ContentService.MimeType.JSON);
+}
+
+/**
  * Handle GET requests - For Vercel frontend integration
  * Returns JSON responses for API calls with proper CORS headers
+ * NOW ALSO HANDLES: recordAttendance, recordDeployment, manualClockOutSelected via GET (workaround for CORS)
  */
 function doGet(e) {
   try {
+    Logger.log("==========================================================");
     Logger.log("=== doGet called at " + new Date().toISOString() + " ===");
+    Logger.log("==========================================================");
+    
+    // Log complete request information
+    Logger.log("📍 Request Details:");
+    Logger.log("  - Has 'e' object: " + (!!e));
+    Logger.log("  - Has 'e.parameter': " + (e && !!e.parameter));
+    Logger.log("  - Has 'e.parameters': " + (e && !!e.parameters));
+    
+    if (e && e.parameter) {
+      Logger.log("📊 URL Parameters (e.parameter):");
+      try {
+        var paramKeys = Object.keys(e.parameter);
+        Logger.log("  - Parameter count: " + paramKeys.length);
+        Logger.log("  - Parameter keys: " + paramKeys.join(", "));
+        
+        // Log each parameter (truncate long values)
+        paramKeys.forEach(function(key) {
+          var value = e.parameter[key];
+          var displayValue = value;
+          if (typeof value === 'string' && value.length > 100) {
+            displayValue = value.substring(0, 100) + "... (length: " + value.length + ")";
+          }
+          Logger.log("  - " + key + ": " + displayValue);
+        });
+      } catch (paramErr) {
+        Logger.log("  - Error logging parameters: " + paramErr.message);
+      }
+    }
     
     // Check if this is an API call (has 'action' parameter)
     if (e && e.parameter && e.parameter.action) {
       var action = e.parameter.action;
-      Logger.log("🎯 GET Action: " + action);
+      Logger.log("==========================================================");
+      Logger.log("🎯 ACTION DETECTED: " + action);
+      Logger.log("🔍 Action details:");
+      Logger.log("  - Length: " + action.length);
+      Logger.log("  - Type: " + typeof action);
+      Logger.log("  - Char codes: " + action.split('').map(function(c) { return c.charCodeAt(0); }).join(','));
+      Logger.log("  - Trimmed: '" + action.trim() + "'");
+      Logger.log("  - Equals 'recordAttendance': " + (action === 'recordAttendance'));
+      Logger.log("  - Trimmed equals: " + (action.trim() === 'recordAttendance'));
+      Logger.log("==========================================================");
+      
+      // Normalize action by trimming whitespace
+      action = action.trim();
       
       var result = {};
       
@@ -582,12 +638,95 @@ function doGet(e) {
           var message = autoClockOutPM();
           result = { success: true, message: message };
           break;
+        
+        // WORKAROUND: Handle POST actions via GET
+        case 'recordAttendance':
+          Logger.log("=== recordAttendance via GET (CORS workaround) ===");
+          Logger.log("📍 Request timestamp: " + new Date().toISOString());
+          Logger.log("📊 All parameters: " + JSON.stringify(e.parameter));
+          
+          try {
+            // Log each parameter individually for debugging
+            Logger.log("📋 Parameter details:");
+            Logger.log("  - fullName: " + (e.parameter.fullName || "MISSING"));
+            Logger.log("  - location: " + (e.parameter.location || "MISSING"));
+            Logger.log("  - type: " + (e.parameter.type || "MISSING"));
+            Logger.log("  - photoBase64 length: " + ((e.parameter.photoBase64 || "").length));
+            Logger.log("  - timeStart: " + (e.parameter.timeStart || "N/A"));
+            Logger.log("  - timeEnd: " + (e.parameter.timeEnd || "N/A"));
+            
+            // Validate required parameters before creating payload
+            if (!e.parameter.fullName || e.parameter.fullName === "") {
+              throw new Error("Missing required parameter: fullName");
+            }
+            if (!e.parameter.location || e.parameter.location === "") {
+              throw new Error("Missing required parameter: location");
+            }
+            if (!e.parameter.type || e.parameter.type === "") {
+              throw new Error("Missing required parameter: type");
+            }
+            
+            var payload = {
+              fullName: e.parameter.fullName || "",
+              location: e.parameter.location || "",
+              type: e.parameter.type || "",
+              photoBase64: e.parameter.photoBase64 || "",
+              timeStart: e.parameter.timeStart || "",
+              timeEnd: e.parameter.timeEnd || "",
+              remarks: e.parameter.remarks || "",
+              adminId: e.parameter.adminId || "",
+              adminName: e.parameter.adminName || ""
+            };
+            
+            Logger.log("✅ Validation passed - calling recordAttendance");
+            Logger.log("📦 Payload created: " + JSON.stringify({
+              fullName: payload.fullName,
+              location: payload.location,
+              type: payload.type,
+              hasPhoto: !!payload.photoBase64
+            }));
+            
+            var recordStartTime = new Date().getTime();
+            var message = recordAttendance(payload);
+            var recordDuration = new Date().getTime() - recordStartTime;
+            
+            Logger.log("✅ recordAttendance SUCCESS in " + recordDuration + "ms");
+            Logger.log("📤 Success message: " + message);
+            
+            result = { 
+              success: true, 
+              message: message,
+              timestamp: new Date().toISOString(),
+              _performance: {
+                recordDuration: recordDuration + "ms"
+              }
+            };
+          } catch (recordErr) {
+            Logger.log("❌ recordAttendance FAILED");
+            Logger.log("🔥 Error message: " + recordErr.message);
+            Logger.log("📍 Error location: " + (recordErr.fileName || "unknown") + ":" + (recordErr.lineNumber || "unknown"));
+            Logger.log("🔍 Stack trace: " + (recordErr.stack || "not available"));
+            
+            result = { 
+              success: false, 
+              message: recordErr.message,
+              error: "RECORD_ATTENDANCE_ERROR",
+              errorDetails: {
+                name: recordErr.name,
+                stack: recordErr.stack
+              },
+              timestamp: new Date().toISOString()
+            };
+          }
+          break;
           
         default:
           result = { success: false, message: "Unknown action: " + action };
       }
       
       Logger.log("✅ GET Request completed successfully");
+      Logger.log("📤 Returning JSON response");
+      Logger.log("==========================================================");
       
       // Return JSON response with CORS headers
       return ContentService
@@ -596,22 +735,34 @@ function doGet(e) {
     }
     
     // If no action parameter, return error
+    Logger.log("==========================================================");
     Logger.log("❌ No action parameter in GET request");
+    Logger.log("==========================================================");
     return ContentService
       .createTextOutput(JSON.stringify({ 
         success: false, 
-        message: "No action specified. This is an API endpoint.",
+        message: "No action specified. This is an API endpoint. Please provide an 'action' parameter.",
         timestamp: new Date().toISOString()
       }))
       .setMimeType(ContentService.MimeType.JSON);
                
   } catch (err) {
-    Logger.log("❌ Error in doGet: " + err.message);
-    Logger.log("🔍 Stack: " + err.stack);
+    Logger.log("==========================================================");
+    Logger.log("❌❌❌ FATAL ERROR in doGet ❌❌❌");
+    Logger.log("==========================================================");
+    Logger.log("🔥 Error: " + err.message);
+    Logger.log("📍 Error Name: " + err.name);
+    Logger.log("📍 Error File: " + (err.fileName || "unknown"));
+    Logger.log("📍 Error Line: " + (err.lineNumber || "unknown"));
+    Logger.log("🔍 Stack:");
+    Logger.log(err.stack || "Stack trace not available");
+    Logger.log("==========================================================");
+    
     return ContentService
       .createTextOutput(JSON.stringify({ 
         success: false, 
         message: "Server error: " + err.message,
+        error: "SERVER_ERROR",
         timestamp: new Date().toISOString()
       }))
       .setMimeType(ContentService.MimeType.JSON);
@@ -622,49 +773,89 @@ function doGet(e) {
  * Handle POST requests - For complex payloads from Vercel frontend
  * Handles recordAttendance, recordDeployment, manualClockOutSelected
  * OPTIMIZED: Added CORS headers and better error handling
+ * FIXED: Proper encoding handling for UTF-8 and form-encoded data
  */
 function doPost(e) {
   var startTime = new Date().getTime();
   
   try {
     Logger.log("=== doPost called at " + new Date().toISOString() + " ===");
-    Logger.log("📍 Request source: " + (e.parameter ? "URL params" : "POST body"));
+    Logger.log("📍 Request object exists: " + (!!e));
+    Logger.log("📍 Has postData: " + (e && !!e.postData));
+    Logger.log("📍 Has parameters: " + (e && !!e.parameter));
     
     // Parse the JSON payload
     var data = {};
+    var rawContent = "";
     
     if (e && e.postData && e.postData.contents) {
-      Logger.log("📦 POST data received, size: " + e.postData.contents.length + " bytes");
-      Logger.log("📋 Content type: " + (e.postData.type || "unknown"));
+      Logger.log("📦 POST data received");
+      Logger.log("📋 Content type header: " + (e.postData.type || "unknown"));
+      Logger.log("📏 Data size: " + e.postData.contents.length + " bytes");
       
+      // Get raw content - handle both string and Uint8Array
       try {
-        data = JSON.parse(e.postData.contents);
-        Logger.log("✅ Parsed data successfully");
+        if (typeof e.postData.contents === 'string') {
+          rawContent = e.postData.contents;
+        } else if (e.postData.contents instanceof Uint8Array || e.postData.contents.constructor.name === 'Uint8Array') {
+          // Convert byte array to string
+          var bytes = e.postData.contents;
+          rawContent = "";
+          for (var i = 0; i < bytes.length; i++) {
+            rawContent += String.fromCharCode(bytes[i]);
+          }
+        } else {
+          rawContent = String(e.postData.contents);
+        }
+        
+        Logger.log("✅ Content converted to string, length: " + rawContent.length);
+        Logger.log("📄 First 200 chars: [" + rawContent.substring(0, 200) + "]");
+      } catch (convErr) {
+        Logger.log("❌ Error converting content: " + convErr.message);
+        throw new Error("Failed to convert POST content: " + convErr.message);
+      }
+      
+      // Try to parse as JSON
+      try {
+        Logger.log("📋 Attempting JSON parse...");
+        data = JSON.parse(rawContent);
+        Logger.log("✅ JSON parsed successfully");
         Logger.log("📊 Parsed keys: " + Object.keys(data).join(", "));
       } catch (parseErr) {
-        Logger.log("❌ JSON parse error: " + parseErr.message);
-        Logger.log("📄 Raw content (first 500 chars): " + e.postData.contents.substring(0, 500));
-        return ContentService
-          .createTextOutput(JSON.stringify({ 
-            success: false, 
-            message: "Invalid JSON: " + parseErr.message,
-            error: "PARSE_ERROR"
-          }))
-          .setMimeType(ContentService.MimeType.JSON);
+        Logger.log("❌ JSON parse FAILED: " + parseErr.message);
+        Logger.log("❌ Error stack: " + parseErr.stack);
+        Logger.log("📄 Content that failed to parse: " + rawContent);
+        
+        // If JSON fails and content-type is form-encoded, try parsing as form data
+        if (e.postData.type && (e.postData.type.indexOf("form") !== -1 || e.postData.type.indexOf("urlencoded") !== -1)) {
+          Logger.log("🔄 Attempting to parse as form-encoded data...");
+          try {
+            var params = rawContent.split("&");
+            for (var j = 0; j < params.length; j++) {
+              var pair = params[j].split("=");
+              if (pair.length === 2) {
+                var key = decodeURIComponent(pair[0]);
+                var value = decodeURIComponent(pair[1]);
+                data[key] = value;
+              }
+            }
+            Logger.log("✅ Form data parsed, keys: " + Object.keys(data).join(", "));
+          } catch (formErr) {
+            Logger.log("❌ Form parsing also failed: " + formErr.message);
+            return createErrorResponse("Invalid request format: " + parseErr.message, "PARSE_ERROR");
+          }
+        } else {
+          return createErrorResponse("Invalid JSON: " + parseErr.message, "PARSE_ERROR");
+        }
       }
     } else if (e && e.parameter) {
-      Logger.log("📋 No postData, using parameters");
+      Logger.log("📋 Using URL parameters (no postData)");
       data = e.parameter;
+      Logger.log("📊 Parameter keys: " + Object.keys(data).join(", "));
     } else {
       Logger.log("❌ No data received in POST request");
       Logger.log("📊 Request object keys: " + (e ? Object.keys(e).join(", ") : "null"));
-      return ContentService
-        .createTextOutput(JSON.stringify({ 
-          success: false, 
-          message: "No data received in request",
-          error: "NO_DATA"
-        }))
-        .setMimeType(ContentService.MimeType.JSON);
+      return createErrorResponse("No data received in request", "NO_DATA");
     }
     
     var action = data.action;
@@ -673,13 +864,7 @@ function doPost(e) {
     if (!action) {
       Logger.log("❌ No action specified in payload");
       Logger.log("📊 Data keys: " + Object.keys(data).join(", "));
-      return ContentService
-        .createTextOutput(JSON.stringify({ 
-          success: false, 
-          message: "No action specified in request",
-          error: "NO_ACTION"
-        }))
-        .setMimeType(ContentService.MimeType.JSON);
+      return createErrorResponse("No action specified in request", "NO_ACTION");
     }
     
     var result = {};
@@ -840,8 +1025,8 @@ function doPost(e) {
     var totalDuration = new Date().getTime() - startTime;
     Logger.log("❌ FATAL ERROR in doPost after " + totalDuration + "ms");
     Logger.log("🔥 Error: " + err.message);
-    Logger.log("📍 Location: " + err.fileName + ":" + err.lineNumber);
-    Logger.log("🔍 Stack: " + err.stack);
+    Logger.log("📍 Location: " + (err.fileName || "unknown") + ":" + (err.lineNumber || "unknown"));
+    Logger.log("🔍 Stack: " + (err.stack || "not available"));
     
     return ContentService
       .createTextOutput(JSON.stringify({ 
@@ -963,79 +1148,128 @@ function getAttendanceStatus(employeeName) {
 function recordAttendance(payload) {
   try {
     // Add comprehensive logging
-    Logger.log("=== recordAttendance START ===");
-    Logger.log("Payload received: " + JSON.stringify({
-      fullName: payload.fullName,
-      location: payload.location,
-      type: payload.type,
-      hasPhoto: !!(payload.photoBase64 && payload.photoBase64.length > 0)
-    }));
+    Logger.log("==============================================================");
+    Logger.log("=== recordAttendance START at " + new Date().toISOString() + " ===");
+    Logger.log("==============================================================");
+    
+    Logger.log("📦 Payload received:");
+    Logger.log("  - fullName: " + (payload.fullName || "UNDEFINED"));
+    Logger.log("  - location: " + (payload.location || "UNDEFINED"));
+    Logger.log("  - type: " + (payload.type || "UNDEFINED"));
+    Logger.log("  - hasPhoto: " + !!(payload.photoBase64 && payload.photoBase64.length > 0));
+    Logger.log("  - photoSize: " + (payload.photoBase64 ? payload.photoBase64.length : 0) + " bytes");
+    Logger.log("  - timeStart: " + (payload.timeStart || "N/A"));
+    Logger.log("  - timeEnd: " + (payload.timeEnd || "N/A"));
+    Logger.log("  - remarks: " + (payload.remarks || "N/A"));
+    
+    Logger.log("📊 Attempting to open spreadsheet...");
+    Logger.log("  - Spreadsheet ID: " + SPREADSHEET_ID);
     
     var ss = SpreadsheetApp.openById(SPREADSHEET_ID);
-    Logger.log("Spreadsheet opened successfully");
+    Logger.log("✅ Spreadsheet opened successfully");
+    Logger.log("  - Spreadsheet name: " + ss.getName());
     
     var targetSheet;
     var formattedDate = Utilities.formatDate(new Date(), Session.getScriptTimeZone(), "yyyy-MM-dd");
     var formattedTime = Utilities.formatDate(new Date(), Session.getScriptTimeZone(), "hh:mm a");
     
-    Logger.log("Current date: " + formattedDate);
-    Logger.log("Current time: " + formattedTime);
+    Logger.log("📅 Date/Time formatting:");
+    Logger.log("  - Date: " + formattedDate);
+    Logger.log("  - Time: " + formattedTime);
+    Logger.log("  - Timezone: " + Session.getScriptTimeZone());
     
     var photoUrl = "No Photo";
 
     // FIXED: Safeguard against undefined payload properties
+    Logger.log("📝 Processing employee name and location...");
+    
     var rawName = (payload.fullName || "").toString();
     var rawLocation = (payload.location || "").toString();
 
-    Logger.log("Raw name: " + rawName);
-    Logger.log("Raw location: " + rawLocation);
+    Logger.log("  - Raw name: '" + rawName + "'");
+    Logger.log("  - Raw location: '" + rawLocation + "'");
+
+    // Validate raw data is not empty
+    if (!rawName || rawName.trim() === "") {
+      Logger.log("❌ ERROR: rawName is empty or undefined");
+      throw new Error("Employee name is required but was not provided in the request");
+    }
+    
+    if (!rawLocation || rawLocation.trim() === "") {
+      Logger.log("❌ ERROR: rawLocation is empty or undefined");
+      throw new Error("Location is required but was not provided in the request");
+    }
 
     var finalName = rawName;
     if (finalName.indexOf(" - ") !== -1) {
-      finalName = finalName.split(" - ")[1].trim();
+      var parts = finalName.split(" - ");
+      Logger.log("  - Name contains ' - ' separator, parts: " + JSON.stringify(parts));
+      finalName = parts[1].trim();
     }
     
-    Logger.log("Final name after extraction: " + finalName);
+    Logger.log("  - Final name after extraction: '" + finalName + "'");
 
     // Validate finalName is not empty
     if (!finalName || finalName === "") {
-      throw new Error("Employee name is empty. Please check employee data.");
+      Logger.log("❌ ERROR: finalName is empty after extraction");
+      throw new Error("Employee name is empty after processing. Raw value was: '" + rawName + "'");
     }
 
     // Location no longer has ID prefix, use as-is
     var finalLocation = rawLocation.trim();
     
-    Logger.log("Final location: " + finalLocation);
+    Logger.log("  - Final location: '" + finalLocation + "'");
+    Logger.log("✅ Name and location processing complete");
 
   // Process photo upload - Save to specific Google Drive folder
+  Logger.log("📷 Photo upload processing...");
   if (payload.photoBase64 && payload.photoBase64.indexOf(",") !== -1) {
     try {
-      Logger.log("Processing photo upload...");
+      Logger.log("  - Photo data detected, size: " + payload.photoBase64.length + " bytes");
       var parts = payload.photoBase64.split(",");
       var base64Data = parts[1];
       var metaData = parts[0];
+      
+      Logger.log("  - Metadata: " + metaData);
+      Logger.log("  - Base64 data length: " + base64Data.length);
       
       var contentType = "image/jpeg"; 
       if (metaData.indexOf(":") !== -1 && metaData.indexOf(";") !== -1) {
           contentType = metaData.substring(metaData.indexOf(":") + 1, metaData.indexOf(";"));
       }
+      Logger.log("  - Content type: " + contentType);
       
+      Logger.log("  - Decoding base64...");
       var decodeBytes = Utilities.base64Decode(base64Data);
+      Logger.log("  - Decoded size: " + decodeBytes.length + " bytes");
+      
       var filename = finalName + "_" + payload.type + "_" + new Date().getTime() + ".jpg";
+      Logger.log("  - Filename: " + filename);
+      
       var blob = Utilities.newBlob(decodeBytes, contentType, filename);
+      Logger.log("  - Blob created successfully");
       
       // Save to specific folder
+      Logger.log("  - Opening Drive folder ID: " + PHOTO_FOLDER_ID);
       var folder = DriveApp.getFolderById(PHOTO_FOLDER_ID);
-      var file = folder.createFile(blob); 
+      Logger.log("  - Folder opened: " + folder.getName());
+      
+      Logger.log("  - Creating file in folder...");
+      var file = folder.createFile(blob);
+      Logger.log("  - File created, setting sharing...");
+      
       file.setSharing(DriveApp.Access.ANYONE_WITH_LINK, DriveApp.Permission.VIEW);
       photoUrl = file.getUrl();
-      Logger.log("Photo uploaded successfully to folder: " + photoUrl);
+      Logger.log("✅ Photo uploaded successfully");
+      Logger.log("  - Photo URL: " + photoUrl);
     } catch (err) {
-      Logger.log("Photo upload failed: " + err.message);
+      Logger.log("❌ Photo upload failed: " + err.message);
+      Logger.log("  - Error stack: " + err.stack);
+      Logger.log("  - Using 'No Photo' as fallback");
       photoUrl = "No Photo"; // Use "No Photo" instead of error message
     }
   } else {
-    Logger.log("No photo to upload");
+    Logger.log("  - No photo to upload (no base64 data or missing comma separator)");
   }
 
   // OVERTIME HANDLING (unchanged)
@@ -1060,17 +1294,33 @@ function recordAttendance(payload) {
   }
   
   // NEW SINGLE-SHIFT ATTENDANCE WORKFLOW
-  Logger.log("Processing standard attendance type: " + payload.type);
+  Logger.log("==============================================================");
+  Logger.log("📊 Processing standard attendance type: " + payload.type);
+  Logger.log("==============================================================");
+  
+  Logger.log("🔍 Looking for ATTENDANCE sheet...");
+  Logger.log("  - Expected sheet name: '" + ATTENDANCE_SHEET + "'");
+  
   targetSheet = ss.getSheetByName(ATTENDANCE_SHEET);
   
-  Logger.log("Looking for ATTENDANCE sheet: " + ATTENDANCE_SHEET);
-  Logger.log("Sheet found: " + (targetSheet ? "Yes" : "No"));
+  Logger.log("  - Sheet found: " + (targetSheet ? "YES" : "NO"));
   
   if (!targetSheet) {
+    Logger.log("❌ CRITICAL ERROR: ATTENDANCE sheet not found!");
+    Logger.log("📋 Available sheets in spreadsheet:");
+    var allSheets = ss.getSheets();
+    for (var i = 0; i < allSheets.length; i++) {
+      Logger.log("  - [" + i + "] " + allSheets[i].getName());
+    }
     throw new Error("ATTENDANCE sheet not found. Expected sheet name: '" + ATTENDANCE_SHEET + "'");
   }
   
-  Logger.log("Getting attendance status for: " + finalName);
+  Logger.log("✅ ATTENDANCE sheet opened successfully");
+  Logger.log("  - Sheet ID: " + targetSheet.getSheetId());
+  Logger.log("  - Last row: " + targetSheet.getLastRow());
+  Logger.log("  - Last column: " + targetSheet.getLastColumn());
+  
+  Logger.log("🔍 Getting attendance status for: " + finalName);
   
   // Get current attendance status
   var status = getAttendanceStatus(finalName);
@@ -1079,33 +1329,57 @@ function recordAttendance(payload) {
   
   // CLOCK IN
   if (payload.type === "IN") {
+    Logger.log("==============================================================");
     Logger.log("=== PROCESSING CLOCK IN ===");
-    Logger.log("Employee: " + finalName);
+    Logger.log("==============================================================");
+    Logger.log("👤 Employee: " + finalName);
+    Logger.log("📍 Location: " + finalLocation);
+    Logger.log("🕐 Time: " + formattedTime);
+    Logger.log("📅 Date: " + formattedDate);
     
     // Check if employee is deployed
+    Logger.log("🔍 Checking if employee is deployed...");
     var deploymentStatus = isEmployeeDeployed(finalName);
     if (deploymentStatus && deploymentStatus.isDeployed) {
+      Logger.log("❌ Employee is deployed - cannot clock in");
+      Logger.log("  - Deployment location: " + deploymentStatus.location);
+      Logger.log("  - Expected return: " + (deploymentStatus.expectedReturn || "End of day"));
       throw new Error("Cannot clock in: " + finalName + " is currently deployed to " + 
                      deploymentStatus.location + ". Expected return: " + 
                      (deploymentStatus.expectedReturn || "End of day"));
     }
+    Logger.log("✅ Employee is not deployed");
     
     // Validate: Cannot clock in if already clocked in today
+    Logger.log("🔍 Checking if already clocked in today...");
+    Logger.log("  - Has Clock In: " + status.hasClockIn);
+    Logger.log("  - Row Number: " + status.rowNumber);
+    
     if (status.hasClockIn) {
+      Logger.log("❌ Already clocked in today - rejecting request");
       throw new Error("You have already clocked in today.");
     }
     
-    Logger.log("Validation passed - proceeding with clock in");
-    Logger.log("Data to write: Date=" + formattedDate + ", Name=" + finalName + ", Time=" + formattedTime + ", Location=" + finalLocation);
+    Logger.log("✅ Validation passed - proceeding with clock in");
+    Logger.log("==============================================================");
+    Logger.log("📝 WRITING TO SPREADSHEET");
+    Logger.log("==============================================================");
+    
+    Logger.log("📊 Data to write:");
+    Logger.log("  - Date: " + formattedDate);
+    Logger.log("  - Name: " + finalName);
+    Logger.log("  - Time: " + formattedTime);
+    Logger.log("  - Location: " + finalLocation);
+    Logger.log("  - Photo URL: " + (photoUrl === "No Photo" ? "No Photo" : "Photo uploaded"));
     
     try {
       // Verify sheet is accessible
       var sheetName = targetSheet.getName();
-      Logger.log("Writing to sheet: " + sheetName);
+      Logger.log("✅ Writing to sheet: " + sheetName);
       
       // Get current last row before append
       var lastRowBefore = targetSheet.getLastRow();
-      Logger.log("Last row before append: " + lastRowBefore);
+      Logger.log("📊 Last row before append: " + lastRowBefore);
       
       // Create new attendance record
       // Columns: Date, Employee_Name, Time In, Location, Time In Photo, Break Start, Break End, Time Out, Time Out Location, Time Out Photo
@@ -1122,65 +1396,139 @@ function recordAttendance(payload) {
         ""               // J: Time Out Photo (empty)
       ];
       
-      Logger.log("Row data prepared: " + JSON.stringify(rowData));
+      Logger.log("📦 Row data array prepared:");
+      for (var i = 0; i < rowData.length; i++) {
+        var colLetter = String.fromCharCode(65 + i); // A=65
+        Logger.log("  - Column " + colLetter + " [" + i + "]: " + rowData[i]);
+      }
       
-      // Append the row
-      Logger.log("Calling appendRow...");
-      targetSheet.appendRow(rowData);
+      // CRITICAL: Append the row
+      Logger.log("==============================================================");
+      Logger.log("⚠️  CRITICAL OPERATION: Calling appendRow()...");
+      Logger.log("==============================================================");
       
-      Logger.log("appendRow completed successfully");
+      try {
+        targetSheet.appendRow(rowData);
+        Logger.log("✅ appendRow() call completed without throwing error");
+      } catch (appendErr) {
+        Logger.log("❌ CRITICAL: appendRow() threw an exception!");
+        Logger.log("  - Error: " + appendErr.message);
+        Logger.log("  - Stack: " + appendErr.stack);
+        throw new Error("Failed to append row: " + appendErr.message);
+      }
+      
+      Logger.log("==============================================================");
+      Logger.log("💾 FLUSHING SPREADSHEET TO ENSURE WRITE");
+      Logger.log("==============================================================");
       
       // Force flush MULTIPLE times to ensure write
-      Logger.log("Flushing spreadsheet...");
-      SpreadsheetApp.flush();
-      Utilities.sleep(150); // Wait 150ms (increased from 100ms)
+      Logger.log("  - Flush #1...");
       SpreadsheetApp.flush();
       
-      Logger.log("Spreadsheet flushed - checking if row was added");
+      Logger.log("  - Waiting 150ms...");
+      Utilities.sleep(150); // Wait 150ms (increased from 100ms)
+      
+      Logger.log("  - Flush #2...");
+      SpreadsheetApp.flush();
+      
+      Logger.log("✅ Flush operations completed");
+      Logger.log("==============================================================");
+      Logger.log("🔍 VERIFYING ROW WAS ADDED");
+      Logger.log("==============================================================");
       
       // Get the row number that was just added
       var lastRowAfter = targetSheet.getLastRow();
-      Logger.log("Last row after append: " + lastRowAfter);
+      Logger.log("📊 Last row after append: " + lastRowAfter);
+      Logger.log("📊 Row count difference: " + (lastRowAfter - lastRowBefore));
       
       if (lastRowAfter <= lastRowBefore) {
-        Logger.log("ERROR: Row count did not increase!");
+        Logger.log("❌❌❌ CRITICAL ERROR: Row count did not increase! ❌❌❌");
+        Logger.log("  - Last row before: " + lastRowBefore);
+        Logger.log("  - Last row after: " + lastRowAfter);
+        Logger.log("  - Expected: " + (lastRowBefore + 1));
+        Logger.log("  - This indicates the appendRow operation silently failed");
         throw new Error("Row was not added! Last row before: " + lastRowBefore + ", after: " + lastRowAfter);
       }
       
-      Logger.log("SUCCESS: Row was added at position " + lastRowAfter);
+      Logger.log("✅✅✅ SUCCESS: Row was added at position " + lastRowAfter + " ✅✅✅");
       
-      // Verify the data was written
-      Logger.log("Verifying written data...");
-      var verifyRow = targetSheet.getRange(lastRowAfter, 1, 1, 10).getValues()[0];
-      Logger.log("Verification - Row data: " + JSON.stringify(verifyRow));
+      // Verify the data was written correctly
+      Logger.log("==============================================================");
+      Logger.log("🔍 READING BACK WRITTEN DATA FOR VERIFICATION");
+      Logger.log("==============================================================");
+      Logger.log("  - Reading row: " + lastRowAfter);
+      Logger.log("  - Reading columns: 1-10 (A-J)");
+      
+      try {
+        var verifyRow = targetSheet.getRange(lastRowAfter, 1, 1, 10).getValues()[0];
+        Logger.log("✅ Verification read successful");
+        Logger.log("📊 Verification - Written data:");
+        for (var i = 0; i < verifyRow.length; i++) {
+          var colLetter = String.fromCharCode(65 + i);
+          var expected = rowData[i];
+          var actual = verifyRow[i];
+          var match = (String(expected) === String(actual)) ? "✓" : "✗";
+          Logger.log("  - Column " + colLetter + " " + match + ": '" + actual + "' (expected: '" + expected + "')");
+        }
+      } catch (verifyErr) {
+        Logger.log("⚠️  WARNING: Could not verify written data: " + verifyErr.message);
+        Logger.log("  - This doesn't mean the write failed, just that verification failed");
+      }
       
       // ==========================================================================
       // LATE MARKING: Mark as LATE if clock in is 8:16 AM or later
       // ==========================================================================
+      Logger.log("==============================================================");
+      Logger.log("⏰ CHECKING IF EMPLOYEE IS LATE");
+      Logger.log("==============================================================");
+      
       var currentTime = new Date();
       var clockInHour = currentTime.getHours();
       var clockInMinute = currentTime.getMinutes();
+      
+      Logger.log("  - Current hour: " + clockInHour);
+      Logger.log("  - Current minute: " + clockInMinute);
+      Logger.log("  - Late threshold: " + LATE_TIME_HOUR + ":" + LATE_TIME_MINUTE);
       
       // Check if late (using configured threshold)
       var isLate = false;
       if (clockInHour > LATE_TIME_HOUR) {
         isLate = true; // After late hour
+        Logger.log("  - Status: LATE (hour " + clockInHour + " > " + LATE_TIME_HOUR + ")");
       } else if (clockInHour === LATE_TIME_HOUR && clockInMinute >= LATE_TIME_MINUTE) {
         isLate = true; // At or after late time
+        Logger.log("  - Status: LATE (hour matches and minute " + clockInMinute + " >= " + LATE_TIME_MINUTE + ")");
+      } else {
+        Logger.log("  - Status: ON TIME");
       }
       
       if (isLate) {
-        Logger.log("Employee is LATE - applying red background");
-        // Mark entire row as late with red background
-        var rowRange = targetSheet.getRange(lastRowAfter, 1, 1, 12); // All columns A-L
-        rowRange.setBackground("#FFCDD2"); // Light red background
-        Logger.log("Red background applied to row " + lastRowAfter);
+        Logger.log("🔴 Employee is LATE - applying red background to row " + lastRowAfter);
+        try {
+          // Mark entire row as late with red background
+          var rowRange = targetSheet.getRange(lastRowAfter, 1, 1, 12); // All columns A-L
+          rowRange.setBackground("#FFCDD2"); // Light red background
+          Logger.log("✅ Red background applied successfully");
+        } catch (lateMarkErr) {
+          Logger.log("⚠️  WARNING: Could not apply late marking: " + lateMarkErr.message);
+        }
       }
       
       // Final flush
+      Logger.log("💾 Final flush...");
       SpreadsheetApp.flush();
       
+      Logger.log("==============================================================");
       Logger.log("=== CLOCK IN COMPLETED SUCCESSFULLY ===");
+      Logger.log("==============================================================");
+      Logger.log("✅✅✅ SUMMARY:");
+      Logger.log("  - Employee: " + finalName);
+      Logger.log("  - Time: " + formattedTime);
+      Logger.log("  - Location: " + finalLocation);
+      Logger.log("  - Row: " + lastRowAfter);
+      Logger.log("  - Late: " + (isLate ? "YES" : "NO"));
+      Logger.log("  - Photo: " + (photoUrl === "No Photo" ? "Not provided" : "Uploaded"));
+      Logger.log("==============================================================");
       
       return "Clock In successful at " + formattedTime + (isLate ? " (LATE)" : "") + " - Row: " + lastRowAfter;
       
@@ -1315,18 +1663,32 @@ function recordAttendance(payload) {
   throw new Error("Invalid attendance type: " + payload.type);
   
   } catch (err) {
-    Logger.log("=== ERROR in recordAttendance ===");
-    Logger.log("ERROR: " + err.message);
-    Logger.log("Stack trace: " + err.stack);
+    Logger.log("==============================================================");
+    Logger.log("❌❌❌ ERROR in recordAttendance ❌❌❌");
+    Logger.log("==============================================================");
+    Logger.log("🔥 Error Message: " + err.message);
+    Logger.log("📍 Error Name: " + err.name);
+    Logger.log("📍 Error File: " + (err.fileName || "unknown"));
+    Logger.log("📍 Error Line: " + (err.lineNumber || "unknown"));
+    Logger.log("🔍 Stack Trace:");
+    Logger.log(err.stack || "Stack trace not available");
+    
+    Logger.log("==============================================================");
+    Logger.log("📊 CONTEXT AT TIME OF ERROR:");
+    Logger.log("==============================================================");
     
     // Log payload info safely
     try {
-      Logger.log("Payload type: " + (payload ? payload.type : "undefined"));
-      Logger.log("Payload fullName: " + (payload ? payload.fullName : "undefined"));
-      Logger.log("Payload location: " + (payload ? payload.location : "undefined"));
+      Logger.log("Payload Information:");
+      Logger.log("  - type: " + (payload ? payload.type : "payload is undefined"));
+      Logger.log("  - fullName: " + (payload ? payload.fullName : "payload is undefined"));
+      Logger.log("  - location: " + (payload ? payload.location : "payload is undefined"));
+      Logger.log("  - photoBase64 length: " + (payload && payload.photoBase64 ? payload.photoBase64.length : "N/A"));
     } catch (logErr) {
-      Logger.log("Could not log payload details");
+      Logger.log("Could not log payload details: " + logErr.message);
     }
+    
+    Logger.log("==============================================================");
     
     // Return user-friendly error message
     throw err; // Re-throw the original error with its message

@@ -360,7 +360,10 @@
                 
                 const response = await fetch(GOOGLE_SCRIPT_URL, {
                     method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
+                    headers: { 
+                        'Content-Type': 'application/json',
+                        'Accept': 'application/json'
+                    },
                     body: JSON.stringify(testPayload),
                     redirect: 'follow'
                 });
@@ -369,24 +372,36 @@
                 
                 log('info', `⏱️ Response time: ${duration}ms`);
                 log('info', `📊 Status: ${response.status}`);
+                log('info', `📋 Content-Type: ${response.headers.get('content-type')}`);
                 
-                const data = await response.json();
-                log('info', '📦 Response: ' + JSON.stringify(data));
+                const text = await response.text();
+                log('info', `📄 Raw response (first 300 chars): ${text.substring(0, 300)}`);
                 
-                if (response.ok && data.success !== false) {
-                    log('success', `✅ POST request successful (${duration}ms)`);
-                    log('warning', '⚠️ Note: This was a test request. Check your sheet for a test entry.');
-                    updateStatus('✅ Attendance recording endpoint working', 'success');
-                    recordTestResult(true, duration);
-                } else {
-                    log('error', `❌ Request failed: ${data.message || 'Unknown error'}`);
-                    updateStatus('❌ Attendance recording failed', 'error');
+                try {
+                    const data = JSON.parse(text);
+                    log('info', '📦 Response: ' + JSON.stringify(data));
+                    
+                    if (response.ok && data.success !== false) {
+                        log('success', `✅ POST request successful (${duration}ms)`);
+                        log('warning', '⚠️ Note: This was a test request. Check your sheet for a test entry.');
+                        updateStatus('✅ Attendance recording endpoint working', 'success');
+                        recordTestResult(true, duration);
+                    } else {
+                        log('error', `❌ Request failed: ${data.message || 'Unknown error'}`);
+                        updateStatus('❌ Attendance recording failed', 'error');
+                        recordTestResult(false, duration);
+                    }
+                } catch (jsonErr) {
+                    log('error', `❌ Failed to parse response JSON: ${jsonErr.message}`);
+                    log('error', `❌ Raw response: ${text}`);
+                    updateStatus('❌ Invalid response format', 'error');
                     recordTestResult(false, duration);
                 }
                 
             } catch (error) {
                 const duration = Date.now() - startTime;
                 log('error', `❌ Failed: ${error.message}`);
+                log('error', `🔍 Error type: ${error.name}`);
                 updateStatus('❌ POST request failed', 'error');
                 recordTestResult(false, duration);
             }
